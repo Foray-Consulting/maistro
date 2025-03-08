@@ -1,0 +1,22 @@
+{
+  "name": "maistro",
+  "version": "0.1.0",
+  "description": "Goose CLI automation tool",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "cron-parser": "^4.9.0",
+    "node-cron": "^3.0.3",
+    "fs-extra": "^11.2.0",
+    "morgan": "^1.10.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}
