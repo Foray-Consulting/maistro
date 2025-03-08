@@ -9,10 +9,12 @@ class ExecutionManager {
   /**
    * Constructor
    * @param {ConfigManager} configManager - Config manager instance
+   * @param {MCPServerManager} mcpServerManager - MCP server manager instance
    * @param {string} dataDir - Data directory path
    */
-  constructor(configManager, dataDir) {
+  constructor(configManager, mcpServerManager, dataDir) {
     this.configManager = configManager;
+    this.mcpServerManager = mcpServerManager;
     this.dataDir = dataDir;
     this.promptsDir = path.join(dataDir, 'prompts');
     this.activeExecutions = new Map();
@@ -157,6 +159,32 @@ class ExecutionManager {
         args = ['run', '--resume', '--name', sessionName, '--instructions', absolutePromptPath];
       }
 
+      // Get the prompt being executed
+      const promptObj = config.prompts[currentIndex];
+      
+      // Check if this prompt has MCP server extensions enabled
+      if (typeof promptObj === 'object' && promptObj.mcpServerIds && promptObj.mcpServerIds.length > 0) {
+        const mcpServerIds = promptObj.mcpServerIds;
+        this.log(`Prompt has ${mcpServerIds.length} MCP server extensions enabled`);
+        
+        // Add MCP server extension arguments
+        const extensionArgs = this.mcpServerManager.buildExtensionArgs(mcpServerIds);
+        
+        if (extensionArgs.length > 0) {
+          this.log(`Adding ${extensionArgs.length / 2} MCP server extensions to command`);
+          args.push(...extensionArgs);
+          
+          // Log the MCP servers being used
+          mcpServerIds.forEach(id => {
+            const server = this.mcpServerManager.getMCPServerById(id);
+            if (server) {
+              this.log(`Using MCP server: ${server.name}`);
+              this.sendOutput(ws, `Using MCP extension: ${server.name}\n`);
+            }
+          });
+        }
+      }
+      
       // Log detailed command information
       this.log(`Command: ${command} ${args.join(' ')}`);
       this.log(`Current working directory: ${process.cwd()}`);

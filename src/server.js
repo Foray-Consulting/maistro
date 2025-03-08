@@ -10,6 +10,7 @@ const fs = require('fs-extra');
 const ConfigManager = require('./config-manager');
 const ExecutionManager = require('./execution-manager');
 const CrontabManager = require('./crontab-manager');
+const MCPServerManager = require('./mcp-server-manager');
 
 // Enable debugging for execution manager
 process.env.DEBUG = 'true';
@@ -26,7 +27,8 @@ fs.ensureDirSync(path.join(dataDir, 'prompts'));
 
 // Initialize managers
 const configManager = new ConfigManager(path.join(dataDir, 'configs.json'));
-const executionManager = new ExecutionManager(configManager, dataDir);
+const mcpServerManager = new MCPServerManager(path.join(dataDir, 'mcp-servers.json'));
+const executionManager = new ExecutionManager(configManager, mcpServerManager, dataDir);
 const crontabManager = new CrontabManager(configManager, executionManager);
 
 // Middleware
@@ -90,6 +92,39 @@ app.post('/api/run/:id', async (req, res) => {
     res.json({ success: true, message: 'Execution started' });
   } catch (error) {
     console.error('Error starting execution:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// MCP Server Routes
+app.get('/api/mcp-servers', (req, res) => {
+  try {
+    const mcpServers = mcpServerManager.getAllMCPServers();
+    res.json(mcpServers);
+  } catch (error) {
+    console.error('Error getting MCP servers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/mcp-servers', async (req, res) => {
+  try {
+    const mcpServer = req.body;
+    await mcpServerManager.saveMCPServer(mcpServer);
+    res.json({ success: true, mcpServer });
+  } catch (error) {
+    console.error('Error saving MCP server:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/mcp-servers/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    await mcpServerManager.deleteMCPServer(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting MCP server:', error);
     res.status(500).json({ error: error.message });
   }
 });

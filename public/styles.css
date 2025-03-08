@@ -32,6 +32,47 @@ body {
     display: none !important;
 }
 
+/* Main Navigation */
+.main-nav {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.nav-btn {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+}
+
+.nav-btn:hover {
+    color: var(--primary-color);
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+.nav-btn.active {
+    color: var(--primary-color);
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.page-section {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 2rem;
+}
+
+.page-section.hidden {
+    display: none;
+}
+
 /* Layout */
 .app-container {
     max-width: 1200px;
@@ -428,13 +469,125 @@ main {
     color: var(--danger-color);
 }
 
+/* MCP Servers UI */
+.mcp-servers-list {
+    background-color: var(--card-bg);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+}
+
+.mcp-servers-list h2 {
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+
+.mcp-servers-container {
+    margin-bottom: 1rem;
+}
+
+.mcp-server-item {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mcp-server-item:hover {
+    background-color: var(--bg-color);
+}
+
+.mcp-server-item.active {
+    border-color: var(--primary-color);
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+.mcp-server-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mcp-server-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.active-mcp-server {
+    background-color: var(--card-bg);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.env-var-item {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    align-items: center;
+}
+
+.env-var-key, .env-var-value {
+    flex: 1;
+}
+
+.env-var-tools {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.help-text {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-top: 0.25rem;
+}
+
+textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+/* MCP checkboxes in prompt items */
+.prompt-mcp-servers {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.mcp-server-chip {
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(37, 99, 235, 0.1);
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    color: var(--primary-color);
+}
+
+.mcp-server-chip.disabled {
+    background-color: var(--bg-color);
+    color: var(--text-light);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
-    main {
+    main, .page-section {
         grid-template-columns: 1fr;
     }
     
-    .configs-list {
+    .configs-list, .mcp-servers-list {
         max-height: none;
     }
 }

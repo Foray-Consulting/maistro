@@ -5,9 +5,15 @@ let editingConfig = null;
 let socket = null;
 let hasUnsavedChanges = false;
 
+// MCP Server state
+let mcpServers = [];
+let activeMCPServerId = null;
+let editingMCPServer = null;
+let hasMCPServerUnsavedChanges = false;
+
 // DOM Elements
 document.addEventListener('DOMContentLoaded', () => {
-    // Event listeners
+    // Config event listeners
     document.getElementById('createConfigBtn').addEventListener('click', createNewConfig);
     document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
     document.getElementById('cancelConfigBtn').addEventListener('click', cancelConfigEdit);
@@ -17,10 +23,41 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('runConfigBtn').addEventListener('click', runConfig);
     document.getElementById('clearOutputBtn').addEventListener('click', clearOutput);
     
+    // MCP Server event listeners
+    document.getElementById('createMCPServerBtn').addEventListener('click', createNewMCPServer);
+    document.getElementById('saveMCPServerBtn').addEventListener('click', saveMCPServer);
+    document.getElementById('cancelMCPServerBtn').addEventListener('click', cancelMCPServerEdit);
+    document.getElementById('addEnvVarBtn').addEventListener('click', addEnvVar);
+    
+    // Navigation event listeners
+    document.getElementById('navConfigsBtn').addEventListener('click', () => switchSection('configs'));
+    document.getElementById('navMCPServersBtn').addEventListener('click', () => switchSection('mcpServers'));
+    
     // Initialize
     loadConfigs();
+    loadMCPServers();
     initializeScheduleDays();
 });
+
+// Navigation
+function switchSection(section) {
+    // Hide all sections
+    document.getElementById('configsSection').classList.add('hidden');
+    document.getElementById('mcpServersSection').classList.add('hidden');
+    
+    // Deactivate all nav buttons
+    document.getElementById('navConfigsBtn').classList.remove('active');
+    document.getElementById('navMCPServersBtn').classList.remove('active');
+    
+    // Show the requested section
+    if (section === 'configs') {
+        document.getElementById('configsSection').classList.remove('hidden');
+        document.getElementById('navConfigsBtn').classList.add('active');
+    } else if (section === 'mcpServers') {
+        document.getElementById('mcpServersSection').classList.remove('hidden');
+        document.getElementById('navMCPServersBtn').classList.add('active');
+    }
+}
 
 // Configuration management
 function loadConfigs() {
@@ -107,15 +144,15 @@ function selectConfig(configId) {
     document.getElementById('configForm').classList.remove('hidden');
     document.getElementById('executionPanel').classList.remove('hidden');
     
-    // Update config form
-    editingConfig = { ...config };
+    // Update config form with backward compatibility for prompts
+    editingConfig = ensurePromptObjects({ ...config });
     
     document.getElementById('configFormTitle').textContent = config.name;
     document.getElementById('configStatus').textContent = 'Saved';
     document.getElementById('configStatus').className = 'status-indicator saved';
     
     document.getElementById('configName').value = config.name;
-    renderPromptsList(config.prompts);
+    renderPromptsList(editingConfig.prompts);
     document.getElementById('scheduleEnabled').checked = config.schedule?.enabled || false;
     toggleScheduleOptions();
     
@@ -342,11 +379,24 @@ function renderPromptsList(prompts) {
     }
     
     prompts.forEach((prompt, index) => {
+        // Convert string prompts to objects if necessary
+        const promptObj = typeof prompt === 'string' 
+            ? { text: prompt, mcpServerIds: [] } 
+            : prompt;
+        
+        // Ensure editingConfig.prompts has the object version
+        if (typeof editingConfig.prompts[index] === 'string') {
+            editingConfig.prompts[index] = promptObj;
+        }
+        
         const promptElement = document.createElement('div');
         promptElement.className = 'prompt-item';
         promptElement.innerHTML = `
             <div class="prompt-content">
-                <input type="text" class="prompt-text" value="${escapeHtml(prompt)}" placeholder="Enter prompt text">
+                <input type="text" class="prompt-text" value="${escapeHtml(promptObj.text)}" placeholder="Enter prompt text">
+                <div class="prompt-mcp-servers">
+                    <button class="btn small select-mcp-servers">MCP Servers: ${promptObj.mcpServerIds?.length || 0} enabled</button>
+                </div>
             </div>
             <div class="prompt-tools">
                 ${index > 0 ? '<button class="icon-btn move-up" title="Move Up">⬆️</button>' : ''}
@@ -361,9 +411,20 @@ function renderPromptsList(prompts) {
     // Add event listeners
     document.querySelectorAll('.prompt-text').forEach((input, index) => {
         input.addEventListener('input', () => {
-            editingConfig.prompts[index] = input.value;
+            if (typeof editingConfig.prompts[index] === 'string') {
+                editingConfig.prompts[index] = { 
+                    text: input.value, 
+                    mcpServerIds: [] 
+                };
+            } else {
+                editingConfig.prompts[index].text = input.value;
+            }
             markAsUnsaved();
         });
+    });
+    
+    document.querySelectorAll('.select-mcp-servers').forEach((btn, index) => {
+        btn.addEventListener('click', () => showMCPServerSelector(index));
     });
     
     document.querySelectorAll('.move-up').forEach((btn, index) => {
@@ -379,10 +440,133 @@ function renderPromptsList(prompts) {
     });
 }
 
+function showMCPServerSelector(promptIndex) {
+    if (!editingConfig || !mcpServers || mcpServers.length === 0) {
+        alert('No MCP servers configured. Add servers in the MCP Servers tab first.');
+        return;
+    }
+    
+    // Ensure prompt is an object
+    if (typeof editingConfig.prompts[promptIndex] === 'string') {
+        editingConfig.prompts[promptIndex] = {
+            text: editingConfig.prompts[promptIndex],
+            mcpServerIds: []
+        };
+    }
+    
+    // Get current selections
+    const prompt = editingConfig.prompts[promptIndex];
+    const selectedIds = prompt.mcpServerIds || [];
+    
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'mcp-server-dialog';
+    dialog.style.position = 'fixed';
+    dialog.style.top = '50%';
+    dialog.style.left = '50%';
+    dialog.style.transform = 'translate(-50%, -50%)';
+    dialog.style.backgroundColor = 'white';
+    dialog.style.padding = '20px';
+    dialog.style.borderRadius = '5px';
+    dialog.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+    dialog.style.zIndex = '1000';
+    dialog.style.maxWidth = '400px';
+    dialog.style.width = '100%';
+    
+    // Add title
+    const title = document.createElement('h3');
+    title.textContent = 'Select MCP Servers';
+    title.style.marginBottom = '15px';
+    dialog.appendChild(title);
+    
+    // Add MCP server options
+    mcpServers.forEach(server => {
+        const label = document.createElement('div');
+        label.style.marginBottom = '10px';
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.style.marginRight = '10px';
+        checkbox.checked = selectedIds.includes(server.id);
+        checkbox.dataset.id = server.id;
+        
+        const text = document.createTextNode(server.name);
+        
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        dialog.appendChild(label);
+    });
+    
+    // Add buttons
+    const buttonArea = document.createElement('div');
+    buttonArea.style.display = 'flex';
+    buttonArea.style.justifyContent = 'flex-end';
+    buttonArea.style.marginTop = '20px';
+    buttonArea.style.gap = '10px';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'btn';
+    cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+    });
+    
+    const applyBtn = document.createElement('button');
+    applyBtn.textContent = 'Apply';
+    applyBtn.className = 'btn primary';
+    applyBtn.addEventListener('click', () => {
+        // Update prompt with selected servers
+        const selectedIds = [];
+        dialog.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            if (checkbox.checked) {
+                selectedIds.push(checkbox.dataset.id);
+            }
+        });
+        
+        // Update the prompt
+        editingConfig.prompts[promptIndex].mcpServerIds = selectedIds;
+        markAsUnsaved();
+        
+        // Redraw prompts list
+        renderPromptsList(editingConfig.prompts);
+        
+        // Close dialog
+        document.body.removeChild(overlay);
+    });
+    
+    buttonArea.appendChild(cancelBtn);
+    buttonArea.appendChild(applyBtn);
+    dialog.appendChild(buttonArea);
+    
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    overlay.style.zIndex = '999';
+    overlay.appendChild(dialog);
+    
+    document.body.appendChild(overlay);
+}
+
 function addPrompt() {
     if (!editingConfig) return;
     
-    editingConfig.prompts.push('');
+    // Add prompt with default MCP server selections
+    const defaultEnabledServers = mcpServers
+        .filter(server => server.defaultEnabled)
+        .map(server => server.id);
+    
+    editingConfig.prompts.push({
+        text: '',
+        mcpServerIds: defaultEnabledServers
+    });
+    
     renderPromptsList(editingConfig.prompts);
     markAsUnsaved();
     
@@ -417,6 +601,23 @@ function removePrompt(index) {
     editingConfig.prompts.splice(index, 1);
     renderPromptsList(editingConfig.prompts);
     markAsUnsaved();
+}
+
+// Ensure backward compatibility by converting string prompts to objects
+function ensurePromptObjects(config) {
+    if (!config || !config.prompts) return config;
+    
+    config.prompts = config.prompts.map(prompt => {
+        if (typeof prompt === 'string') {
+            return {
+                text: prompt,
+                mcpServerIds: []
+            };
+        }
+        return prompt;
+    });
+    
+    return config;
 }
 
 // Schedule management
@@ -735,6 +936,379 @@ function appendOutput(text, className = '') {
 
 function clearOutput() {
     document.getElementById('outputDisplay').innerHTML = '';
+}
+
+// MCP Server Management
+function loadMCPServers() {
+    fetch('/api/mcp-servers')
+        .then(response => response.json())
+        .then(data => {
+            mcpServers = data;
+            renderMCPServersList();
+        })
+        .catch(error => {
+            console.error('Error loading MCP servers:', error);
+        });
+}
+
+function renderMCPServersList() {
+    const container = document.getElementById('mcpServersList');
+    container.innerHTML = '';
+    
+    if (mcpServers.length === 0) {
+        container.innerHTML = '<div class="empty-state">No MCP servers configured yet</div>';
+        return;
+    }
+    
+    mcpServers.forEach(server => {
+        const serverElement = document.createElement('div');
+        serverElement.className = `mcp-server-item ${server.id === activeMCPServerId ? 'active' : ''}`;
+        serverElement.dataset.id = server.id;
+        
+        serverElement.innerHTML = `
+            <div class="mcp-server-header">
+                <strong>${server.name}</strong>
+                <div class="mcp-server-actions">
+                    <button class="icon-btn edit-mcp-server" title="Edit">✏️</button>
+                    <button class="icon-btn danger delete-mcp-server" title="Delete">🗑️</button>
+                </div>
+            </div>
+            <div class="mcp-server-command">${server.command} ${server.args || ''}</div>
+        `;
+        
+        serverElement.addEventListener('click', (e) => {
+            if (!e.target.closest('.mcp-server-actions')) {
+                selectMCPServer(server.id);
+            }
+        });
+        
+        container.appendChild(serverElement);
+    });
+    
+    // Add event listeners for action buttons
+    document.querySelectorAll('.edit-mcp-server').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const serverId = e.target.closest('.mcp-server-item').dataset.id;
+            editMCPServer(serverId);
+            e.stopPropagation();
+        });
+    });
+    
+    document.querySelectorAll('.delete-mcp-server').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const serverId = e.target.closest('.mcp-server-item').dataset.id;
+            deleteMCPServer(serverId);
+            e.stopPropagation();
+        });
+    });
+}
+
+function selectMCPServer(serverId) {
+    activeMCPServerId = serverId;
+    
+    // Update UI
+    document.querySelectorAll('.mcp-server-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.id === serverId);
+    });
+    
+    const mcpServer = mcpServers.find(s => s.id === serverId);
+    if (!mcpServer) return;
+    
+    // Show edit form
+    document.getElementById('mcpServerForm').classList.remove('hidden');
+    
+    // Update MCP server form
+    editingMCPServer = { ...mcpServer };
+    if (!editingMCPServer.env) {
+        editingMCPServer.env = {};
+    }
+    
+    document.getElementById('mcpServerFormTitle').textContent = mcpServer.name;
+    document.getElementById('mcpServerStatus').textContent = 'Saved';
+    document.getElementById('mcpServerStatus').className = 'status-indicator saved';
+    
+    document.getElementById('mcpServerName').value = mcpServer.name || '';
+    document.getElementById('mcpServerCommand').value = mcpServer.command || '';
+    document.getElementById('mcpServerArgs').value = mcpServer.args || '';
+    document.getElementById('mcpServerDescription').value = mcpServer.description || '';
+    document.getElementById('mcpServerDefaultEnabled').checked = mcpServer.defaultEnabled || false;
+    
+    // Render environment variables
+    renderEnvVarsList(mcpServer.env || {});
+    
+    // Set up form change tracking
+    setupMCPServerFormChangeTracking();
+}
+
+function setupMCPServerFormChangeTracking() {
+    hasMCPServerUnsavedChanges = false;
+    
+    // Track form field changes
+    document.getElementById('mcpServerName').addEventListener('input', markMCPServerAsUnsaved);
+    document.getElementById('mcpServerCommand').addEventListener('input', markMCPServerAsUnsaved);
+    document.getElementById('mcpServerArgs').addEventListener('input', markMCPServerAsUnsaved);
+    document.getElementById('mcpServerDescription').addEventListener('input', markMCPServerAsUnsaved);
+    document.getElementById('mcpServerDefaultEnabled').addEventListener('change', markMCPServerAsUnsaved);
+}
+
+function markMCPServerAsUnsaved() {
+    if (!hasMCPServerUnsavedChanges && editingMCPServer) {
+        hasMCPServerUnsavedChanges = true;
+        document.getElementById('mcpServerStatus').textContent = 'Unsaved';
+        document.getElementById('mcpServerStatus').className = 'status-indicator unsaved';
+    }
+}
+
+function createNewMCPServer() {
+    activeMCPServerId = null;
+    editingMCPServer = {
+        id: `mcp-server-${Date.now()}`,
+        name: '',
+        command: '',
+        args: '',
+        env: {},
+        description: '',
+        defaultEnabled: false
+    };
+    
+    document.getElementById('mcpServerFormTitle').textContent = 'New MCP Server';
+    document.getElementById('mcpServerStatus').textContent = 'Unsaved';
+    document.getElementById('mcpServerStatus').className = 'status-indicator unsaved';
+    
+    document.getElementById('mcpServerName').value = '';
+    document.getElementById('mcpServerCommand').value = '';
+    document.getElementById('mcpServerArgs').value = '';
+    document.getElementById('mcpServerDescription').value = '';
+    document.getElementById('mcpServerDefaultEnabled').checked = false;
+    
+    renderEnvVarsList({});
+    
+    // Show form
+    document.getElementById('mcpServerForm').classList.remove('hidden');
+    
+    // Set up form change tracking
+    setupMCPServerFormChangeTracking();
+}
+
+function editMCPServer(serverId) {
+    selectMCPServer(serverId);
+}
+
+function saveMCPServer() {
+    const name = document.getElementById('mcpServerName').value.trim();
+    if (!name) {
+        alert('Please enter a MCP server name');
+        return;
+    }
+    
+    const command = document.getElementById('mcpServerCommand').value.trim();
+    if (!command) {
+        alert('Please enter a command');
+        return;
+    }
+    
+    editingMCPServer.name = name;
+    editingMCPServer.command = command;
+    editingMCPServer.args = document.getElementById('mcpServerArgs').value.trim();
+    editingMCPServer.description = document.getElementById('mcpServerDescription').value.trim();
+    editingMCPServer.defaultEnabled = document.getElementById('mcpServerDefaultEnabled').checked;
+    
+    // Save to server
+    fetch('/api/mcp-servers', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editingMCPServer)
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update local data
+        const existingIndex = mcpServers.findIndex(s => s.id === editingMCPServer.id);
+        if (existingIndex >= 0) {
+            mcpServers[existingIndex] = editingMCPServer;
+        } else {
+            mcpServers.push(editingMCPServer);
+        }
+        
+        // Update UI
+        renderMCPServersList();
+        
+        // Set status to saved
+        hasMCPServerUnsavedChanges = false;
+        document.getElementById('mcpServerStatus').textContent = 'Saved';
+        document.getElementById('mcpServerStatus').className = 'status-indicator saved';
+        
+        // Keep the same server selected
+        activeMCPServerId = editingMCPServer.id;
+    })
+    .catch(error => {
+        console.error('Error saving MCP server:', error);
+        alert('Failed to save MCP server');
+    });
+}
+
+function cancelMCPServerEdit() {
+    if (hasMCPServerUnsavedChanges) {
+        if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+            return;
+        }
+    }
+    
+    // If we're editing an existing server, reload it
+    if (activeMCPServerId) {
+        selectMCPServer(activeMCPServerId);
+    } else {
+        // Otherwise, just hide the form
+        document.getElementById('mcpServerForm').classList.add('hidden');
+    }
+    
+    hasMCPServerUnsavedChanges = false;
+}
+
+function deleteMCPServer(serverId) {
+    if (!confirm('Are you sure you want to delete this MCP server?')) {
+        return;
+    }
+    
+    fetch(`/api/mcp-servers/${serverId}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (response.ok) {
+            mcpServers = mcpServers.filter(s => s.id !== serverId);
+            
+            if (activeMCPServerId === serverId) {
+                activeMCPServerId = null;
+                document.getElementById('mcpServerForm').classList.add('hidden');
+            }
+            
+            renderMCPServersList();
+        } else {
+            alert('Failed to delete MCP server');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting MCP server:', error);
+        alert('Failed to delete MCP server');
+    });
+}
+
+// Environment Variable Management
+function renderEnvVarsList(env) {
+    const container = document.getElementById('envVarsList');
+    container.innerHTML = '';
+    
+    if (!env || Object.keys(env).length === 0) {
+        container.innerHTML = '<div class="empty-state">No environment variables defined</div>';
+        return;
+    }
+    
+    Object.entries(env).forEach(([key, value], index) => {
+        const envVarElement = document.createElement('div');
+        envVarElement.className = 'env-var-item';
+        envVarElement.innerHTML = `
+            <input type="text" class="env-var-key" value="${escapeHtml(key)}" placeholder="Variable name">
+            <input type="text" class="env-var-value" value="${escapeHtml(value)}" placeholder="Value">
+            <div class="env-var-tools">
+                <button class="icon-btn danger remove-env-var" title="Remove">✖️</button>
+            </div>
+        `;
+        
+        container.appendChild(envVarElement);
+    });
+    
+    // Add event listeners
+    document.querySelectorAll('.env-var-key').forEach((input, index) => {
+        input.addEventListener('input', () => {
+            updateEnvVarsFromInputs();
+            markMCPServerAsUnsaved();
+        });
+    });
+    
+    document.querySelectorAll('.env-var-value').forEach((input, index) => {
+        input.addEventListener('input', () => {
+            updateEnvVarsFromInputs();
+            markMCPServerAsUnsaved();
+        });
+    });
+    
+    document.querySelectorAll('.remove-env-var').forEach((btn, index) => {
+        btn.addEventListener('click', () => {
+            btn.closest('.env-var-item').remove();
+            updateEnvVarsFromInputs();
+            markMCPServerAsUnsaved();
+        });
+    });
+}
+
+function updateEnvVarsFromInputs() {
+    if (!editingMCPServer) return;
+    
+    const env = {};
+    document.querySelectorAll('.env-var-item').forEach(item => {
+        const keyInput = item.querySelector('.env-var-key');
+        const valueInput = item.querySelector('.env-var-value');
+        
+        const key = keyInput.value.trim();
+        const value = valueInput.value.trim();
+        
+        if (key) {
+            env[key] = value;
+        }
+    });
+    
+    editingMCPServer.env = env;
+}
+
+function addEnvVar() {
+    if (!editingMCPServer) return;
+    
+    // Create a new empty environment variable input row
+    const container = document.getElementById('envVarsList');
+    
+    // If there's an empty state message, clear it
+    if (container.querySelector('.empty-state')) {
+        container.innerHTML = '';
+    }
+    
+    const envVarElement = document.createElement('div');
+    envVarElement.className = 'env-var-item';
+    envVarElement.innerHTML = `
+        <input type="text" class="env-var-key" placeholder="Variable name">
+        <input type="text" class="env-var-value" placeholder="Value">
+        <div class="env-var-tools">
+            <button class="icon-btn danger remove-env-var" title="Remove">✖️</button>
+        </div>
+    `;
+    
+    container.appendChild(envVarElement);
+    
+    // Add event listeners
+    const keyInput = envVarElement.querySelector('.env-var-key');
+    keyInput.addEventListener('input', () => {
+        updateEnvVarsFromInputs();
+        markMCPServerAsUnsaved();
+    });
+    
+    const valueInput = envVarElement.querySelector('.env-var-value');
+    valueInput.addEventListener('input', () => {
+        updateEnvVarsFromInputs();
+        markMCPServerAsUnsaved();
+    });
+    
+    const removeBtn = envVarElement.querySelector('.remove-env-var');
+    removeBtn.addEventListener('click', () => {
+        envVarElement.remove();
+        updateEnvVarsFromInputs();
+        markMCPServerAsUnsaved();
+    });
+    
+    // Focus the key input
+    keyInput.focus();
+    
+    // Mark as unsaved
+    markMCPServerAsUnsaved();
 }
 
 // Utilities

@@ -11,125 +11,192 @@
         <header>
             <h1>Maistro</h1>
             <p>Prompt Automation Tool</p>
+            <nav class="main-nav">
+                <button id="navConfigsBtn" class="nav-btn active">Configurations</button>
+                <button id="navMCPServersBtn" class="nav-btn">MCP Servers</button>
+            </nav>
         </header>
 
         <main>
-            <section class="configs-list">
-                <h2>Configurations</h2>
-                <div class="configs-container" id="configsList"></div>
-                <button id="createConfigBtn" class="btn primary">+ New Configuration</button>
-            </section>
+            <!-- Configurations Section -->
+            <div id="configsSection" class="page-section active">
+                <section class="configs-list">
+                    <h2>Configurations</h2>
+                    <div class="configs-container" id="configsList"></div>
+                    <button id="createConfigBtn" class="btn primary">+ New Configuration</button>
+                </section>
 
-            <section class="active-config">
-                <div class="config-container">
-                    <div id="configForm">
-                        <div class="form-header">
-                            <div class="title-area">
-                                <h2 id="configFormTitle">New Configuration</h2>
-                                <span id="configStatus" class="status-indicator unsaved">Unsaved</span>
-                            </div>
-                            <div class="form-actions">
-                                <button id="saveConfigBtn" class="btn primary">Save</button>
-                                <button id="cancelConfigBtn" class="btn">Cancel</button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="configName">Name</label>
-                            <input type="text" id="configName" placeholder="Configuration name">
-                        </div>
-
-                        <div class="form-group">
-                            <h3>Prompts</h3>
-                            <div id="promptsList"></div>
-                            <button id="addPromptBtn" class="btn secondary">+ Add Prompt</button>
-                        </div>
-
-                        <div class="form-group">
-                            <h3>Schedule (Optional)</h3>
-                            <div class="schedule-options">
-                                <div class="form-check">
-                                    <input type="checkbox" id="scheduleEnabled">
-                                    <label for="scheduleEnabled">Enable scheduling</label>
+                <section class="active-config">
+                    <div class="config-container">
+                        <div id="configForm">
+                            <div class="form-header">
+                                <div class="title-area">
+                                    <h2 id="configFormTitle">New Configuration</h2>
+                                    <span id="configStatus" class="status-indicator unsaved">Unsaved</span>
                                 </div>
-                                
-                                <div id="scheduleConfig" class="hidden">
-                                    <div class="schedule-row">
-                                        <label for="scheduleFrequency">Frequency</label>
-                                        <select id="scheduleFrequency">
-                                            <option value="daily">Daily</option>
-                                            <option value="weekly">Weekly</option>
-                                            <option value="monthly">Monthly</option>
-                                        </select>
+                                <div class="form-actions">
+                                    <button id="saveConfigBtn" class="btn primary">Save</button>
+                                    <button id="cancelConfigBtn" class="btn">Cancel</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="configName">Name</label>
+                                <input type="text" id="configName" placeholder="Configuration name">
+                            </div>
+
+                            <div class="form-group">
+                                <h3>Prompts</h3>
+                                <div id="promptsList"></div>
+                                <button id="addPromptBtn" class="btn secondary">+ Add Prompt</button>
+                            </div>
+
+                            <div class="form-group">
+                                <h3>Schedule (Optional)</h3>
+                                <div class="schedule-options">
+                                    <div class="form-check">
+                                        <input type="checkbox" id="scheduleEnabled">
+                                        <label for="scheduleEnabled">Enable scheduling</label>
                                     </div>
                                     
-                                    <div class="schedule-row">
-                                        <label for="scheduleTime">Time</label>
-                                        <input type="time" id="scheduleTime" value="09:00">
-                                    </div>
-                                    
-                                    <div id="scheduleDays" class="schedule-row hidden">
-                                        <label>Days</label>
-                                        <div class="days-selector">
-                                            <div class="day-option">
-                                                <input type="checkbox" id="day-mon" class="day-checkbox">
-                                                <label for="day-mon">Mon</label>
-                                            </div>
-                                            <div class="day-option">
-                                                <input type="checkbox" id="day-tue" class="day-checkbox">
-                                                <label for="day-tue">Tue</label>
-                                            </div>
-                                            <div class="day-option">
-                                                <input type="checkbox" id="day-wed" class="day-checkbox">
-                                                <label for="day-wed">Wed</label>
-                                            </div>
-                                            <div class="day-option">
-                                                <input type="checkbox" id="day-thu" class="day-checkbox">
-                                                <label for="day-thu">Thu</label>
-                                            </div>
-                                            <div class="day-option">
-                                                <input type="checkbox" id="day-fri" class="day-checkbox">
-                                                <label for="day-fri">Fri</label>
-                                            </div>
-                                            <div class="day-option">
-                                                <input type="checkbox" id="day-sat" class="day-checkbox">
-                                                <label for="day-sat">Sat</label>
-                                            </div>
-                                            <div class="day-option">
-                                                <input type="checkbox" id="day-sun" class="day-checkbox">
-                                                <label for="day-sun">Sun</label>
+                                    <div id="scheduleConfig" class="hidden">
+                                        <div class="schedule-row">
+                                            <label for="scheduleFrequency">Frequency</label>
+                                            <select id="scheduleFrequency">
+                                                <option value="daily">Daily</option>
+                                                <option value="weekly">Weekly</option>
+                                                <option value="monthly">Monthly</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="schedule-row">
+                                            <label for="scheduleTime">Time</label>
+                                            <input type="time" id="scheduleTime" value="09:00">
+                                        </div>
+                                        
+                                        <div id="scheduleDays" class="schedule-row hidden">
+                                            <label>Days</label>
+                                            <div class="days-selector">
+                                                <div class="day-option">
+                                                    <input type="checkbox" id="day-mon" class="day-checkbox">
+                                                    <label for="day-mon">Mon</label>
+                                                </div>
+                                                <div class="day-option">
+                                                    <input type="checkbox" id="day-tue" class="day-checkbox">
+                                                    <label for="day-tue">Tue</label>
+                                                </div>
+                                                <div class="day-option">
+                                                    <input type="checkbox" id="day-wed" class="day-checkbox">
+                                                    <label for="day-wed">Wed</label>
+                                                </div>
+                                                <div class="day-option">
+                                                    <input type="checkbox" id="day-thu" class="day-checkbox">
+                                                    <label for="day-thu">Thu</label>
+                                                </div>
+                                                <div class="day-option">
+                                                    <input type="checkbox" id="day-fri" class="day-checkbox">
+                                                    <label for="day-fri">Fri</label>
+                                                </div>
+                                                <div class="day-option">
+                                                    <input type="checkbox" id="day-sat" class="day-checkbox">
+                                                    <label for="day-sat">Sat</label>
+                                                </div>
+                                                <div class="day-option">
+                                                    <input type="checkbox" id="day-sun" class="day-checkbox">
+                                                    <label for="day-sun">Sun</label>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    
-                                    <div id="scheduleDate" class="schedule-row hidden">
-                                        <label for="scheduleDay">Day of month</label>
-                                        <select id="scheduleDay"></select>
+                                        
+                                        <div id="scheduleDate" class="schedule-row hidden">
+                                            <label for="scheduleDay">Day of month</label>
+                                            <select id="scheduleDay"></select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div id="executionPanel">
-                        <div class="execution-header">
-                            <h2 id="executionTitle">Run Configuration</h2>
-                            <button id="runConfigBtn" class="btn primary">Run Now</button>
-                        </div>
-                        
-                        <div class="terminal">
-                            <div class="terminal-header">
-                                <div class="terminal-header-left">
-                                    <span>Output</span>
-                                    <span id="connectionStatus" class="connection-status offline">Disconnected</span>
-                                </div>
-                                <button id="clearOutputBtn" class="btn small">Clear</button>
+                        <div id="executionPanel">
+                            <div class="execution-header">
+                                <h2 id="executionTitle">Run Configuration</h2>
+                                <button id="runConfigBtn" class="btn primary">Run Now</button>
                             </div>
-                            <div id="outputDisplay" class="terminal-content"></div>
+                            
+                            <div class="terminal">
+                                <div class="terminal-header">
+                                    <div class="terminal-header-left">
+                                        <span>Output</span>
+                                        <span id="connectionStatus" class="connection-status offline">Disconnected</span>
+                                    </div>
+                                    <button id="clearOutputBtn" class="btn small">Clear</button>
+                                </div>
+                                <div id="outputDisplay" class="terminal-content"></div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
+
+            <!-- MCP Servers Section -->
+            <div id="mcpServersSection" class="page-section hidden">
+                <section class="mcp-servers-list">
+                    <h2>MCP Servers</h2>
+                    <div class="mcp-servers-container" id="mcpServersList"></div>
+                    <button id="createMCPServerBtn" class="btn primary">+ New MCP Server</button>
+                </section>
+
+                <section class="active-mcp-server">
+                    <div id="mcpServerForm" class="hidden">
+                        <div class="form-header">
+                            <div class="title-area">
+                                <h2 id="mcpServerFormTitle">New MCP Server</h2>
+                                <span id="mcpServerStatus" class="status-indicator unsaved">Unsaved</span>
+                            </div>
+                            <div class="form-actions">
+                                <button id="saveMCPServerBtn" class="btn primary">Save</button>
+                                <button id="cancelMCPServerBtn" class="btn">Cancel</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="mcpServerName">Name</label>
+                            <input type="text" id="mcpServerName" placeholder="MCP Server name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="mcpServerCommand">Command</label>
+                            <input type="text" id="mcpServerCommand" placeholder="e.g., node">
+                            <p class="help-text">The command to execute (e.g., 'node')</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="mcpServerArgs">Arguments</label>
+                            <input type="text" id="mcpServerArgs" placeholder="e.g., /path/to/script.js">
+                            <p class="help-text">Command line arguments (e.g., path to a script)</p>
+                        </div>
+
+                        <div class="form-group">
+                            <h3>Environment Variables</h3>
+                            <div id="envVarsList"></div>
+                            <button id="addEnvVarBtn" class="btn secondary">+ Add Environment Variable</button>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="mcpServerDescription">Description (Optional)</label>
+                            <textarea id="mcpServerDescription" rows="3" placeholder="Describe what this MCP server does"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <h3>Default Settings</h3>
+                            <div class="form-check">
+                                <input type="checkbox" id="mcpServerDefaultEnabled">
+                                <label for="mcpServerDefaultEnabled">Enable by default for new prompts</label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 

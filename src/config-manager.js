@@ -103,7 +103,7 @@ class ConfigManager {
   /**
    * Save prompt to a file
    * @param {string} configId - Configuration ID
-   * @param {string} prompt - Prompt text
+   * @param {string} prompt - Prompt text or prompt object
    * @param {number} index - Prompt index
    * @param {string} promptsDir - Directory to save prompts in
    * @returns {string} - File path
@@ -112,8 +112,32 @@ class ConfigManager {
     const fileName = `${configId}_prompt_${index}.md`;
     const filePath = path.join(promptsDir, fileName);
     
-    await fs.writeFile(filePath, prompt);
+    // Handle both string prompts and prompt objects
+    const promptText = typeof prompt === 'object' ? prompt.text : prompt;
+    
+    await fs.writeFile(filePath, promptText);
     return filePath;
+  }
+
+  /**
+   * Get prompt text from a prompt object or string
+   * @param {Object|string} prompt - Prompt object or string
+   * @returns {string} - Prompt text
+   */
+  getPromptText(prompt) {
+    return typeof prompt === 'object' ? prompt.text : prompt;
+  }
+
+  /**
+   * Get enabled MCP server IDs for a prompt
+   * @param {Object|string} prompt - Prompt object or string
+   * @returns {Array} - Array of enabled MCP server IDs
+   */
+  getPromptMCPServerIds(prompt) {
+    if (typeof prompt === 'object' && prompt.mcpServerIds) {
+      return prompt.mcpServerIds;
+    }
+    return [];
   }
 }
 
