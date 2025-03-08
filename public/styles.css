@@ -281,6 +281,47 @@ main {
     color: var(--terminal-text);
 }
 
+.terminal-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.connection-status {
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.connection-status.offline {
+    background-color: #444;
+    color: #ccc;
+}
+
+.connection-status.connecting {
+    background-color: #f59e0b;
+    color: #fff;
+}
+
+.connection-status.connected {
+    background-color: #10b981;
+    color: #fff;
+}
+
+.connection-status.active {
+    background-color: #3b82f6;
+    color: #fff;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.7; }
+    50% { opacity: 1; }
+    100% { opacity: 0.7; }
+}
+
 .terminal-content {
     height: 400px;
     padding: 1rem;
@@ -290,7 +331,39 @@ main {
     white-space: pre-wrap;
     font-size: 0.9rem;
     line-height: 1.4;
+    background-color: var(--terminal-bg);
 }
+
+/* Terminal output styling */
+.terminal-content pre {
+    margin: 0;
+    padding: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.terminal-content .info {
+    color: #5bc0de;
+}
+
+.terminal-content .success {
+    color: #5cb85c;
+}
+
+.terminal-content .error {
+    color: #d9534f;
+}
+
+/* ANSI color approximations */
+.terminal-content .ansi-black { color: #333; }
+.terminal-content .ansi-red { color: #e74c3c; }
+.terminal-content .ansi-green { color: #2ecc71; }
+.terminal-content .ansi-yellow { color: #f1c40f; }
+.terminal-content .ansi-blue { color: #3498db; }
+.terminal-content .ansi-magenta { color: #9b59b6; }
+.terminal-content .ansi-cyan { color: #1abc9c; }
+.terminal-content .ansi-white { color: #ecf0f1; }
 
 /* Buttons */
 .btn {

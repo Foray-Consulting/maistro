@@ -526,27 +526,98 @@ function runConfig() {
     });
 }
 
+/**
+ * Update connection status indicator
+ * @param {string} status - Status type: 'offline', 'connecting', 'connected', 'active'
+ * @param {string} [text] - Optional text to display (defaults to status name)
+ */
+function updateConnectionStatus(status, text) {
+    const statusElement = document.getElementById('connectionStatus');
+    
+    // Remove all status classes
+    statusElement.classList.remove('offline', 'connecting', 'connected', 'active');
+    
+    // Add the new status class
+    statusElement.classList.add(status);
+    
+    // Set the text
+    statusElement.textContent = text || status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+// Track when the last message was received to show animation
+let lastMessageTime = 0;
+let statusCheckInterval = null;
+
 function connectSocket(configId) {
     // Close existing socket if any
     if (socket) {
         socket.close();
     }
     
+    // Update status to connecting
+    updateConnectionStatus('connecting', 'Connecting...');
+    
     // Create new socket
     socket = new WebSocket(`ws://${window.location.host}/ws/execution/${configId}`);
     
+    // Set timeout for connection
+    const connectionTimeout = setTimeout(() => {
+        if (socket.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket connection timeout');
+            updateConnectionStatus('offline', 'Connection failed');
+            appendOutput('Connection timeout. Please try again.\n', 'error');
+        }
+    }, 5000);
+    
     socket.onopen = () => {
+        clearTimeout(connectionTimeout);
         console.log('WebSocket connected');
+        updateConnectionStatus('connected');
         appendOutput('Connected, waiting for execution to start...\n', 'info');
+        
+        // Start checking for activity
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+        }
+        
+        statusCheckInterval = setInterval(() => {
+            // If we've received a message in the last 2 seconds, show "active"
+            const now = Date.now();
+            if (now - lastMessageTime < 2000) {
+                updateConnectionStatus('active', 'Receiving data...');
+            } else {
+                updateConnectionStatus('connected');
+            }
+        }, 1000);
     };
     
     socket.onmessage = (event) => {
+        // Update last message time
+        lastMessageTime = Date.now();
+        
         try {
-            console.log('Received WebSocket message:', event.data);
+            console.log('WebSocket message received of length:', event.data.length);
+            // Show first 200 chars in console for debugging
+            if (event.data.length > 0) {
+                console.log('Message preview:', event.data.substring(0, 200) + 
+                    (event.data.length > 200 ? '...' : ''));
+            }
+            
             const data = JSON.parse(event.data);
             
-            if (data.type === 'output') {
-                appendOutput(data.content);
+            // Log message type for debugging
+            console.log('Message type:', data.type);
+            
+            // Handle message based on type
+            if (data.type === 'connection') {
+                // This is the initial connection confirmation
+                console.log('Connection confirmed:', data.message);
+            } else if (data.type === 'output') {
+                // For output type, specifically log the content length
+                console.log('Output content length:', data.content?.length || 0);
+                if (data.content && data.content.trim().length > 0) {
+                    appendOutput(data.content);
+                }
             } else if (data.type === 'start') {
                 appendOutput(`Starting prompt ${data.promptIndex + 1}/${data.totalPrompts}: ${data.prompt}\n`, 'info');
             } else if (data.type === 'complete') {
@@ -565,39 +636,101 @@ function connectSocket(configId) {
                 socket.close();
             }
         } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-            appendOutput('Error: ' + error.message, 'error');
+            console.error('Error processing WebSocket message:', error);
+            console.error('Raw message data:', event.data);
+            appendOutput('Error processing output: ' + error.message, 'error');
         }
     };
     
     socket.onerror = (error) => {
+        clearTimeout(connectionTimeout);
         console.error('WebSocket error:', error);
-        appendOutput('WebSocket error', 'error');
+        updateConnectionStatus('offline', 'Connection error');
+        appendOutput('WebSocket error: Connection failed', 'error');
     };
     
     socket.onclose = () => {
+        clearTimeout(connectionTimeout);
         console.log('WebSocket closed');
+        updateConnectionStatus('offline', 'Disconnected');
+        
+        // Clear the status check interval
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+            statusCheckInterval = null;
+        }
     };
+}
+
+/**
+ * Parse ANSI escape sequences and convert to HTML classes
+ * @param {string} text - The text containing ANSI escape sequences
+ * @return {string} - HTML with classes representing the ANSI codes
+ */
+function parseAnsiEscapeCodes(text) {
+    if (!text) return '';
+    
+    // Replace ANSI color codes with placeholder markers
+    // This is a simplified version - a full implementation would handle more codes
+    let result = text
+        // Remove carriage returns to prevent line overwriting issues
+        .replace(/\r/g, '')
+        // Replace color codes with markers
+        .replace(/\u001b\[(\d+)m/g, (match, p1) => {
+            const code = parseInt(p1);
+            // Map ANSI codes to color classes
+            if (code === 0) return '</span>'; // Reset
+            if (code === 31) return '<span class="ansi-red">'; // Red
+            if (code === 32) return '<span class="ansi-green">'; // Green
+            if (code === 33) return '<span class="ansi-yellow">'; // Yellow
+            if (code === 34) return '<span class="ansi-blue">'; // Blue
+            if (code === 35) return '<span class="ansi-magenta">'; // Magenta
+            if (code === 36) return '<span class="ansi-cyan">'; // Cyan
+            if (code === 37) return '<span class="ansi-white">'; // White
+            return ''; // Unknown codes are removed
+        });
+    
+    // Close any unclosed spans
+    if (result.includes('<span') && !result.endsWith('</span>')) {
+        result += '</span>';
+    }
+    
+    return result;
 }
 
 function appendOutput(text, className = '') {
     const outputDisplay = document.getElementById('outputDisplay');
-    const span = document.createElement('span');
+    
+    if (!text) return;
+    
+    // Create a pre element to preserve whitespace and line breaks
+    const pre = document.createElement('pre');
+    pre.style.margin = '0';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.wordBreak = 'break-word';
     
     if (className) {
-        span.className = className;
+        pre.className = className;
     }
     
-    // Handle ANSI color codes and other formatting in output
-    // Replace newlines with <br> for HTML display
-    span.textContent = text;
+    // Handle ANSI escape codes
+    const ansiConverted = parseAnsiEscapeCodes(text);
+    
+    // For safety, if the ANSI parsing returns empty, use the original text
+    if (!ansiConverted || ansiConverted.trim() === '') {
+        pre.textContent = text;
+    } else {
+        // Set HTML content with ANSI parsed as classes
+        pre.innerHTML = ansiConverted;
+    }
     
     // Append the output and scroll to the bottom
-    outputDisplay.appendChild(span);
+    outputDisplay.appendChild(pre);
     outputDisplay.scrollTop = outputDisplay.scrollHeight;
     
-    // Debug output
-    console.log('Appended output:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+    // Debug output (limited length for console)
+    console.log('Appended output:', 
+        text.substring(0, 100) + (text.length > 100 ? '...' : ''));
 }
 
 function clearOutput() {

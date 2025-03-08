@@ -119,7 +119,10 @@
                         
                         <div class="terminal">
                             <div class="terminal-header">
-                                <span>Output</span>
+                                <div class="terminal-header-left">
+                                    <span>Output</span>
+                                    <span id="connectionStatus" class="connection-status offline">Disconnected</span>
+                                </div>
                                 <button id="clearOutputBtn" class="btn small">Clear</button>
                             </div>
                             <div id="outputDisplay" class="terminal-content"></div>

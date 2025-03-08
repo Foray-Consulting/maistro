@@ -211,6 +211,9 @@ class ExecutionManager {
         const fullCommand = `${command} ${cmdArgs.join(' ')}`;
         this.log(`Full command: ${fullCommand}`);
         
+        // Send initial command notification to client
+        this.sendOutput(ws, `Executing command: ${fullCommand}\n`);
+        
         // Use explicit shell and options
         const childProcess = spawn(fullCommand, [], {
           env: Object.assign({}, process.env, { FORCE_COLOR: 'true' }), // Enable colored output
@@ -225,15 +228,27 @@ class ExecutionManager {
         this.log(`Process spawned with PID: ${childProcess.pid || 'unknown'}`);
         this.sendOutput(ws, `Starting execution...\n`);
 
+        // Buffer to collect partial lines
+        let stdoutBuffer = '';
+        let stderrBuffer = '';
+        
         childProcess.stdout.on('data', (data) => {
           const output = data.toString();
           this.log(`[stdout] ${output.trim()}`, false, false);
+          
+          // Add to buffer and process complete lines
+          stdoutBuffer += output;
+          
+          // Immediately send the output to client
           this.sendOutput(ws, output);
         });
 
         childProcess.stderr.on('data', (data) => {
           const output = data.toString();
           this.log(`[stderr] ${output.trim()}`, true, false);
+          
+          // Add to buffer and send to client
+          stderrBuffer += output;
           this.sendOutput(ws, output);
           
           // Capture error output for debugging
@@ -294,11 +309,29 @@ class ExecutionManager {
    * @param {string} content - Output content
    */
   sendOutput(ws, content) {
+    if (!content) return;
+    
+    // Ensure the content is a string
+    const contentStr = String(content);
+    
+    // Only send if we have a valid WebSocket connection
     if (ws && ws.readyState === 1) {
-      ws.send(JSON.stringify({
-        type: 'output',
-        content
-      }));
+      try {
+        // Log output size being sent (for debugging)
+        this.log(`Sending output of size ${contentStr.length} bytes`);
+        
+        // Send the output
+        ws.send(JSON.stringify({
+          type: 'output',
+          content: contentStr
+        }));
+      } catch (error) {
+        this.log(`Error sending output: ${error.message}`, true);
+      }
+    } else if (!ws) {
+      this.log('Cannot send output: WebSocket connection is null', true);
+    } else if (ws.readyState !== 1) {
+      this.log(`Cannot send output: WebSocket connection is in state ${ws.readyState}`, true);
     }
   }
 

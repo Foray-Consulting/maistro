@@ -101,17 +101,67 @@ server.on('upgrade', (request, socket, head) => {
   if (pathname.startsWith('/ws/execution/')) {
     wss.handleUpgrade(request, socket, head, (ws) => {
       const configId = pathname.split('/').pop();
+      console.log(`WebSocket connection established for config ID: ${configId}`);
+      
+      // Store the connection
       connections.set(configId, ws);
       
+      // Send initial confirmation to client
+      ws.send(JSON.stringify({
+        type: 'connection',
+        message: `WebSocket connection established for configuration ${configId}`
+      }));
+      
+      // Set ping interval to keep connection alive
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.ping();
+        } else {
+          clearInterval(pingInterval);
+        }
+      }, 30000); // Send ping every 30 seconds
+      
+      // Handle WebSocket events
       ws.on('close', () => {
+        console.log(`WebSocket connection closed for config ID: ${configId}`);
         connections.delete(configId);
+        clearInterval(pingInterval);
       });
+      
+      ws.on('error', (error) => {
+        console.error(`WebSocket error for config ID: ${configId}:`, error);
+      });
+      
+      // Custom ping/pong handling to detect connection issues
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
+      
+      // Mark connection as alive initially
+      ws.isAlive = true;
       
       wss.emit('connection', ws, request);
     });
   } else {
     socket.destroy();
   }
+});
+
+// Add interval to check for stale connections
+const interval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      return ws.terminate();
+    }
+    
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 45000); // Check every 45 seconds
+
+// Clean up interval on server close
+wss.on('close', () => {
+  clearInterval(interval);
 });
 
 // Handle command-line execution for cron jobs
