@@ -118,6 +118,89 @@ main {
     margin-bottom: 1rem;
 }
 
+/* Folder structure */
+.folder-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.folder-breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background-color: var(--bg-color);
+    border-radius: 0.25rem;
+}
+
+.breadcrumb-item {
+    color: var(--text-light);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.breadcrumb-item:hover {
+    color: var(--primary-color);
+}
+
+.breadcrumb-separator {
+    color: var(--text-light);
+    margin: 0 0.25rem;
+}
+
+.folder-item {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.folder-item:hover {
+    background-color: var(--bg-color);
+}
+
+.folder-item .folder-icon {
+    font-size: 1.1rem;
+    color: var(--primary-color);
+}
+
+.folder-item .folder-name {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+}
+
+.folder-item .folder-actions {
+    margin-bottom: 0;
+    visibility: hidden;
+}
+
+.folder-item:hover .folder-actions {
+    visibility: visible;
+}
+
+.folder-toggle {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.folder-toggle.expanded {
+    transform: rotate(90deg);
+}
+
+.folder-children {
+    padding-left: 1.5rem;
+}
+
 .config-item {
     padding: 0.75rem;
     border: 1px solid var(--border-color);
@@ -125,6 +208,13 @@ main {
     margin-bottom: 0.5rem;
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.config-item .config-icon {
+    margin-right: 0.5rem;
+    color: var(--text-light);
 }
 
 .config-item:hover {
@@ -140,11 +230,75 @@ main {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-grow: 1;
 }
 
 .config-actions {
     display: flex;
     gap: 0.5rem;
+    visibility: hidden;
+}
+
+.config-item:hover .config-actions {
+    visibility: visible;
+}
+
+/* Folder dialog */
+.folder-dialog {
+    padding: 1rem;
+    background-color: var(--card-bg);
+    border-radius: 0.5rem;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.folder-dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.folder-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.context-menu {
+    position: absolute;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    z-index: 1000;
+    min-width: 150px;
+}
+
+.context-menu-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.context-menu-item:hover {
+    background-color: var(--bg-color);
+}
+
+.context-menu-item.danger {
+    color: var(--danger-color);
+}
+
+/* Drag and drop */
+.drag-over {
+    border: 2px dashed var(--primary-color) !important;
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+.dragging {
+    opacity: 0.5;
 }
 
 .config-scheduled {

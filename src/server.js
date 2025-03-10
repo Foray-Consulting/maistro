@@ -49,8 +49,86 @@ const connections = new Map();
 
 // API Routes
 app.get('/api/configs', (req, res) => {
-  const configs = configManager.getAllConfigs();
+  // Check if a folder path is specified in the query parameters
+  const folderPath = req.query.folderPath !== undefined ? req.query.folderPath : undefined;
+  const configs = configManager.getAllConfigs(folderPath);
   res.json(configs);
+});
+
+// Folder API routes
+app.get('/api/folders', (req, res) => {
+  try {
+    const folders = configManager.getAllFolders();
+    res.json(folders);
+  } catch (error) {
+    console.error('Error getting folders:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/folders', async (req, res) => {
+  try {
+    const { path } = req.body;
+    if (!path) {
+      return res.status(400).json({ error: 'No folder path provided' });
+    }
+    
+    const folder = await configManager.createFolder(path);
+    res.json({ success: true, folder });
+  } catch (error) {
+    console.error('Error creating folder:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/folders/:path', async (req, res) => {
+  try {
+    const oldPath = decodeURIComponent(req.params.path);
+    const { newPath } = req.body;
+    
+    if (!newPath) {
+      return res.status(400).json({ error: 'No new path provided' });
+    }
+    
+    await configManager.renameFolder(oldPath, newPath);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error renaming folder:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/folders/:path', async (req, res) => {
+  try {
+    const path = decodeURIComponent(req.params.path);
+    await configManager.deleteFolder(path);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting folder:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/configs/:id/move', async (req, res) => {
+  try {
+    const configId = req.params.id;
+    const { folderPath } = req.body;
+    
+    if (folderPath === undefined) {
+      return res.status(400).json({ error: 'No folder path provided' });
+    }
+    
+    const config = await configManager.moveConfigToFolder(configId, folderPath);
+    
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
+    
+    res.json({ success: true, config });
+  } catch (error) {
+    console.error('Error moving configuration:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/configs', async (req, res) => {

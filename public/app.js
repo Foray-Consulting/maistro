@@ -4,6 +4,10 @@ let activeConfigId = null;
 let editingConfig = null;
 let socket = null;
 let hasUnsavedChanges = false;
+let currentFolderPath = ''; // Current folder being viewed
+let folders = {}; // Folder structure
+let contextMenu = null; // Current open context menu
+let draggedItem = null; // Item being dragged
 
 // MCP Server state
 let mcpServers = [];
@@ -34,6 +38,25 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('scheduleFrequency').addEventListener('change', updateScheduleFields);
     document.getElementById('runConfigBtn').addEventListener('click', runConfig);
     document.getElementById('clearOutputBtn').addEventListener('click', clearOutput);
+    
+    // Add click handler to handle closing context menus
+    document.addEventListener('click', (e) => {
+        if (contextMenu && !e.target.closest('.context-menu')) {
+            contextMenu.remove();
+            contextMenu = null;
+        }
+    });
+    
+    // Add global drag and drop event handlers
+    document.addEventListener('dragover', handleDragOver);
+    document.addEventListener('drop', handleDrop);
+    document.addEventListener('dragend', () => {
+        // Remove all drag-over states
+        document.querySelectorAll('.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+        draggedItem = null;
+    });
     
     // MCP Server event listeners
     document.getElementById('createMCPServerBtn').addEventListener('click', createNewMCPServer);
@@ -85,7 +108,19 @@ function switchSection(section) {
 
 // Configuration management
 function loadConfigs() {
-    fetch('/api/configs')
+    // Load folders first to build the folder structure
+    fetch('/api/folders')
+        .then(response => response.json())
+        .then(data => {
+            folders = {};
+            // Add the data to the folders object
+            data.forEach(folder => {
+                folders[folder.path] = folder;
+            });
+            
+            // Then load configs
+            return fetch('/api/configs');
+        })
         .then(response => response.json())
         .then(data => {
             configs = data;
@@ -103,15 +138,141 @@ function renderConfigsList() {
     const container = document.getElementById('configsList');
     container.innerHTML = '';
     
-    if (configs.length === 0) {
-        container.innerHTML = '<div class="empty-state">No configurations yet</div>';
-        return;
+    // Add a button for creating a new folder at the current level
+    const folderActionsDiv = document.createElement('div');
+    folderActionsDiv.className = 'folder-actions';
+    folderActionsDiv.innerHTML = `
+        <button id="createFolderBtn" class="btn secondary">+ New Folder</button>
+    `;
+    container.appendChild(folderActionsDiv);
+    
+    // Add click event for new folder button
+    document.getElementById('createFolderBtn').addEventListener('click', () => {
+        showCreateFolderDialog(currentFolderPath);
+    });
+    
+    // Create breadcrumb navigation
+    const breadcrumbDiv = document.createElement('div');
+    breadcrumbDiv.className = 'folder-breadcrumb';
+    
+    // Add root link
+    const rootLink = document.createElement('span');
+    rootLink.className = 'breadcrumb-item';
+    rootLink.textContent = 'Home';
+    rootLink.addEventListener('click', () => navigateToFolder(''));
+    breadcrumbDiv.appendChild(rootLink);
+    
+    // Add path segments if not at root
+    if (currentFolderPath) {
+        const pathParts = currentFolderPath.split('/');
+        let currentPath = '';
+        
+        pathParts.forEach((part, index) => {
+            // Add separator
+            const separator = document.createElement('span');
+            separator.className = 'breadcrumb-separator';
+            separator.textContent = '/';
+            breadcrumbDiv.appendChild(separator);
+            
+            // Update current path
+            currentPath = currentPath ? `${currentPath}/${part}` : part;
+            
+            // Add folder link
+            const folderLink = document.createElement('span');
+            folderLink.className = 'breadcrumb-item';
+            folderLink.textContent = part;
+            
+            // Last item is current folder, not clickable
+            if (index === pathParts.length - 1) {
+                folderLink.style.fontWeight = 'bold';
+                folderLink.style.color = 'var(--text-color)';
+            } else {
+                const path = currentPath; // Capture current path for click handler
+                folderLink.addEventListener('click', () => navigateToFolder(path));
+            }
+            
+            breadcrumbDiv.appendChild(folderLink);
+        });
     }
     
-    configs.forEach(config => {
+    container.appendChild(breadcrumbDiv);
+    
+    // Filter subfolders and configs for current folder
+    const subfolders = Object.values(folders).filter(folder => 
+        folder.parentPath === currentFolderPath);
+    
+    const folderConfigs = configs.filter(config => 
+        (config.path || '') === currentFolderPath);
+    
+    // Show empty state if no folders or configs
+    if (subfolders.length === 0 && folderConfigs.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.innerHTML = 'This folder is empty';
+        container.appendChild(emptyDiv);
+        
+        // Add a button for creating a new configuration here
+        const newConfigBtn = document.createElement('button');
+        newConfigBtn.className = 'btn primary';
+        newConfigBtn.textContent = '+ New Configuration';
+        newConfigBtn.addEventListener('click', () => createNewConfig());
+        
+        // Add spacing between empty message and button
+        const spacer = document.createElement('div');
+        spacer.style.height = '10px';
+        
+        container.appendChild(spacer);
+        container.appendChild(newConfigBtn);
+        
+        // Don't return here, we want to continue rendering the folder structure
+    }
+    
+    // Render subfolders
+    subfolders.forEach(folder => {
+        const folderElement = document.createElement('div');
+        folderElement.className = 'folder-item';
+        folderElement.dataset.path = folder.path;
+        folderElement.draggable = true;
+        
+        folderElement.innerHTML = `
+            <span class="folder-icon">📁</span>
+            <div class="folder-name">${folder.name}</div>
+            <div class="folder-actions">
+                <button class="icon-btn rename-folder" title="Rename">✏️</button>
+                <button class="icon-btn danger delete-folder" title="Delete">🗑️</button>
+            </div>
+        `;
+        
+        // Add drag handlers
+        folderElement.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', folder.path);
+            e.dataTransfer.effectAllowed = 'move';
+            folderElement.classList.add('dragging');
+            draggedItem = { type: 'folder', path: folder.path };
+        });
+        
+        // Click to navigate into folder
+        folderElement.addEventListener('click', (e) => {
+            if (!e.target.closest('.folder-actions')) {
+                navigateToFolder(folder.path);
+            }
+        });
+        
+        // Context menu for folder
+        folderElement.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showFolderContextMenu(e, folder);
+        });
+        
+        container.appendChild(folderElement);
+    });
+    
+    // Render configs
+    folderConfigs.forEach(config => {
         const configElement = document.createElement('div');
         configElement.className = `config-item ${config.id === activeConfigId ? 'active' : ''}`;
         configElement.dataset.id = config.id;
+        configElement.draggable = true;
         
         let scheduleInfo = 'Not scheduled';
         if (config.schedule && config.schedule.enabled) {
@@ -119,6 +280,7 @@ function renderConfigsList() {
         }
         
         configElement.innerHTML = `
+            <span class="config-icon">📄</span>
             <div class="config-item-header">
                 <strong>${config.name}</strong>
                 <div class="config-actions">
@@ -129,10 +291,24 @@ function renderConfigsList() {
             <div class="config-scheduled">${scheduleInfo}</div>
         `;
         
+        // Add drag handlers
+        configElement.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', config.id);
+            e.dataTransfer.effectAllowed = 'move';
+            configElement.classList.add('dragging');
+            draggedItem = { type: 'config', id: config.id };
+        });
+        
         configElement.addEventListener('click', (e) => {
             if (!e.target.closest('.config-actions')) {
                 selectConfig(config.id);
             }
+        });
+        
+        // Context menu for config
+        configElement.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showConfigContextMenu(e, config);
         });
         
         container.appendChild(configElement);
@@ -154,6 +330,551 @@ function renderConfigsList() {
             e.stopPropagation();
         });
     });
+    
+    document.querySelectorAll('.rename-folder').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const folderPath = e.target.closest('.folder-item').dataset.path;
+            showRenameFolderDialog(folderPath);
+            e.stopPropagation();
+        });
+    });
+    
+    document.querySelectorAll('.delete-folder').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const folderPath = e.target.closest('.folder-item').dataset.path;
+            deleteFolder(folderPath);
+            e.stopPropagation();
+        });
+    });
+}
+
+// Folder Navigation
+function navigateToFolder(path) {
+    currentFolderPath = path;
+    renderConfigsList();
+}
+
+// Context Menus
+function showFolderContextMenu(e, folder) {
+    if (contextMenu) {
+        contextMenu.remove();
+    }
+    
+    contextMenu = document.createElement('div');
+    contextMenu.className = 'context-menu';
+    contextMenu.style.left = `${e.pageX}px`;
+    contextMenu.style.top = `${e.pageY}px`;
+    
+    contextMenu.innerHTML = `
+        <div class="context-menu-item" data-action="open">
+            <span>📂</span> Open Folder
+        </div>
+        <div class="context-menu-item" data-action="rename">
+            <span>✏️</span> Rename
+        </div>
+        <div class="context-menu-item" data-action="create-subfolder">
+            <span>➕</span> Create Subfolder
+        </div>
+        <div class="context-menu-item danger" data-action="delete">
+            <span>🗑️</span> Delete
+        </div>
+    `;
+    
+    document.body.appendChild(contextMenu);
+    
+    // Prevent menu from going off screen
+    const rect = contextMenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+        contextMenu.style.left = `${e.pageX - rect.width}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+        contextMenu.style.top = `${e.pageY - rect.height}px`;
+    }
+    
+    // Add event listeners
+    contextMenu.querySelectorAll('.context-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const action = item.dataset.action;
+            
+            switch (action) {
+                case 'open':
+                    navigateToFolder(folder.path);
+                    break;
+                case 'rename':
+                    showRenameFolderDialog(folder.path);
+                    break;
+                case 'create-subfolder':
+                    showCreateFolderDialog(folder.path);
+                    break;
+                case 'delete':
+                    deleteFolder(folder.path);
+                    break;
+            }
+            
+            contextMenu.remove();
+            contextMenu = null;
+        });
+    });
+}
+
+function showConfigContextMenu(e, config) {
+    if (contextMenu) {
+        contextMenu.remove();
+    }
+    
+    contextMenu = document.createElement('div');
+    contextMenu.className = 'context-menu';
+    contextMenu.style.left = `${e.pageX}px`;
+    contextMenu.style.top = `${e.pageY}px`;
+    
+    // Get all folder paths for the move submenu
+    const folderPaths = Object.keys(folders);
+    
+    // Start with basic options
+    let menuHtml = `
+        <div class="context-menu-item" data-action="edit">
+            <span>✏️</span> Edit
+        </div>
+        <div class="context-menu-item" data-action="run">
+            <span>▶️</span> Run
+        </div>
+        <div class="context-menu-item" data-action="move-root">
+            <span>📁</span> Move to Root
+        </div>
+    `;
+    
+    // Add move options for each folder (excluding current folder)
+    folderPaths.forEach(folderPath => {
+        if (folderPath !== config.path) {
+            menuHtml += `
+                <div class="context-menu-item" data-action="move" data-path="${folderPath}">
+                    <span>📁</span> Move to ${folderPath}
+                </div>
+            `;
+        }
+    });
+    
+    // Add delete option
+    menuHtml += `
+        <div class="context-menu-item danger" data-action="delete">
+            <span>🗑️</span> Delete
+        </div>
+    `;
+    
+    contextMenu.innerHTML = menuHtml;
+    document.body.appendChild(contextMenu);
+    
+    // Prevent menu from going off screen
+    const rect = contextMenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+        contextMenu.style.left = `${e.pageX - rect.width}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+        contextMenu.style.top = `${e.pageY - rect.height}px`;
+    }
+    
+    // Add event listeners
+    contextMenu.querySelectorAll('.context-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const action = item.dataset.action;
+            
+            switch (action) {
+                case 'edit':
+                    editConfig(config.id);
+                    break;
+                case 'run':
+                    selectConfig(config.id);
+                    runConfig();
+                    break;
+                case 'move-root':
+                    moveConfigToFolder(config.id, '');
+                    break;
+                case 'move':
+                    moveConfigToFolder(config.id, item.dataset.path);
+                    break;
+                case 'delete':
+                    deleteConfig(config.id);
+                    break;
+            }
+            
+            contextMenu.remove();
+            contextMenu = null;
+        });
+    });
+}
+
+// Dialog functions
+function showCreateFolderDialog(parentPath) {
+    // First, create overlay as a separate element
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    overlay.style.zIndex = '999';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    
+    // Then create the dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'folder-dialog';
+    dialog.style.backgroundColor = 'white';
+    dialog.style.borderRadius = '5px';
+    dialog.style.padding = '20px';
+    dialog.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
+    dialog.style.zIndex = '1000';
+    dialog.style.minWidth = '300px';
+    
+    dialog.innerHTML = `
+        <div class="folder-dialog-header">
+            <h3>Create New Folder</h3>
+        </div>
+        <div class="form-group">
+            <label for="newFolderName">Folder Name</label>
+            <input type="text" id="newFolderName" placeholder="Enter folder name">
+        </div>
+        <div class="folder-dialog-actions">
+            <button class="cancel-folder-btn btn">Cancel</button>
+            <button class="create-folder-btn btn primary">Create</button>
+        </div>
+    `;
+    
+    // Append dialog to overlay, then overlay to body
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // Focus the input
+    setTimeout(() => {
+        document.getElementById('newFolderName').focus();
+    }, 0);
+    
+    // Add event listeners - directly to the buttons instead of by ID
+    const cancelBtn = dialog.querySelector('.cancel-folder-btn');
+    const createBtn = dialog.querySelector('.create-folder-btn');
+    const input = document.getElementById('newFolderName');
+    
+    cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+    });
+    
+    createBtn.addEventListener('click', () => {
+        const folderName = input.value.trim();
+        
+        if (!folderName) {
+            alert('Please enter a folder name');
+            return;
+        }
+        
+        // Construct the full path
+        const fullPath = parentPath ? `${parentPath}/${folderName}` : folderName;
+        
+        // Create the folder
+        createFolder(fullPath);
+        
+        document.body.removeChild(overlay);
+    });
+    
+    // Handle Enter key
+    input.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            createBtn.click();
+        }
+    });
+}
+
+function showRenameFolderDialog(folderPath) {
+    const folder = folders[folderPath];
+    if (!folder) return;
+    
+    // First, create overlay as a separate element
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    overlay.style.zIndex = '999';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    
+    // Then create the dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'folder-dialog';
+    dialog.style.backgroundColor = 'white';
+    dialog.style.borderRadius = '5px';
+    dialog.style.padding = '20px';
+    dialog.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
+    dialog.style.zIndex = '1000';
+    dialog.style.minWidth = '300px';
+    
+    dialog.innerHTML = `
+        <div class="folder-dialog-header">
+            <h3>Rename Folder</h3>
+        </div>
+        <div class="form-group">
+            <label for="renameFolderName">Folder Name</label>
+            <input type="text" id="renameFolderName" value="${escapeHtml(folder.name)}">
+        </div>
+        <div class="folder-dialog-actions">
+            <button class="cancel-rename-btn btn">Cancel</button>
+            <button class="rename-folder-btn btn primary">Rename</button>
+        </div>
+    `;
+    
+    // Append dialog to overlay, then overlay to body
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // Focus the input and select all text
+    setTimeout(() => {
+        const input = document.getElementById('renameFolderName');
+        input.focus();
+        input.select();
+    }, 0);
+    
+    // Add event listeners - directly to the buttons instead of by ID
+    const cancelBtn = dialog.querySelector('.cancel-rename-btn');
+    const renameBtn = dialog.querySelector('.rename-folder-btn');
+    const input = document.getElementById('renameFolderName');
+    
+    cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+    });
+    
+    renameBtn.addEventListener('click', () => {
+        const newName = input.value.trim();
+        
+        if (!newName) {
+            alert('Please enter a folder name');
+            return;
+        }
+        
+        // Construct the new path
+        const parentPath = folder.parentPath;
+        const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+        
+        // Rename the folder
+        renameFolder(folderPath, newPath);
+        
+        document.body.removeChild(overlay);
+    });
+    
+    // Handle Enter key
+    input.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            renameBtn.click();
+        }
+    });
+}
+
+// API calls for folder operations
+function createFolder(path) {
+    fetch('/api/folders', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ path })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to create folder');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Update local folders state
+        folders[path] = data.folder;
+        
+        // Navigate to the new folder
+        navigateToFolder(path);
+    })
+    .catch(error => {
+        console.error('Error creating folder:', error);
+        alert('Failed to create folder');
+    });
+}
+
+function renameFolder(oldPath, newPath) {
+    fetch(`/api/folders/${encodeURIComponent(oldPath)}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newPath })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to rename folder');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Reload folders and configs
+        loadConfigs();
+        
+        // Navigate to the new folder path if we were in the old one
+        if (currentFolderPath === oldPath) {
+            currentFolderPath = newPath;
+        }
+    })
+    .catch(error => {
+        console.error('Error renaming folder:', error);
+        alert('Failed to rename folder');
+    });
+}
+
+function deleteFolder(path) {
+    if (!confirm(`Are you sure you want to delete the folder "${path}"?\nConfigurations inside will be moved to the parent folder.`)) {
+        return;
+    }
+    
+    fetch(`/api/folders/${encodeURIComponent(path)}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to delete folder');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Remove from local state
+        delete folders[path];
+        
+        // Go to parent folder if we're in the deleted one
+        if (currentFolderPath === path) {
+            const parentPath = path.includes('/') 
+                ? path.substring(0, path.lastIndexOf('/')) 
+                : '';
+            currentFolderPath = parentPath;
+        }
+        
+        // Reload configs
+        loadConfigs();
+    })
+    .catch(error => {
+        console.error('Error deleting folder:', error);
+        alert('Failed to delete folder');
+    });
+}
+
+function moveConfigToFolder(configId, folderPath) {
+    fetch(`/api/configs/${configId}/move`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ folderPath })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to move configuration');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Update local state
+        const config = configs.find(c => c.id === configId);
+        if (config) {
+            config.path = folderPath;
+        }
+        
+        // Rerender the configs list
+        renderConfigsList();
+    })
+    .catch(error => {
+        console.error('Error moving configuration:', error);
+        alert('Failed to move configuration');
+    });
+}
+
+// Drag and Drop handlers
+function handleDragOver(e) {
+    if (!draggedItem) return;
+    
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    // Remove drag-over class from all elements
+    document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+    });
+    
+    // Add drag-over class to valid drop targets
+    const target = getDragTarget(e);
+    if (target) {
+        target.classList.add('drag-over');
+    }
+}
+
+function handleDrop(e) {
+    if (!draggedItem) return;
+    
+    e.preventDefault();
+    
+    // Remove drag-over class from all elements
+    document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+    });
+    
+    const target = getDragTarget(e);
+    if (!target) return;
+    
+    // Get the destination folder path
+    let destPath = '';
+    if (target.classList.contains('folder-item')) {
+        destPath = target.dataset.path;
+    } else if (target.id === 'configsList' || target.closest('.folder-breadcrumb')) {
+        destPath = currentFolderPath;
+    } else {
+        return;
+    }
+    
+    // Handle drop based on dragged item type
+    if (draggedItem.type === 'config') {
+        moveConfigToFolder(draggedItem.id, destPath);
+    } else if (draggedItem.type === 'folder') {
+        // Can't drop a folder into itself or its subfolder
+        if (destPath === draggedItem.path || destPath.startsWith(`${draggedItem.path}/`)) {
+            return;
+        }
+        
+        // Rename the folder to move it
+        const folderName = draggedItem.path.includes('/') 
+            ? draggedItem.path.split('/').pop() 
+            : draggedItem.path;
+            
+        const newPath = destPath 
+            ? `${destPath}/${folderName}` 
+            : folderName;
+            
+        renameFolder(draggedItem.path, newPath);
+    }
+}
+
+function getDragTarget(e) {
+    // Check if we're hovering over a folder
+    const folderEl = e.target.closest('.folder-item');
+    if (folderEl) return folderEl;
+    
+    // Check if we're hovering over the main configs container 
+    // (to drop at current folder level)
+    const configsList = document.getElementById('configsList');
+    if (configsList.contains(e.target)) return configsList;
+    
+    // Check if we're hovering over breadcrumb (to drop at that level)
+    const breadcrumb = e.target.closest('.folder-breadcrumb');
+    if (breadcrumb) return breadcrumb;
+    
+    return null;
 }
 
 function selectConfig(configId) {
@@ -235,6 +956,7 @@ function createNewConfig() {
     editingConfig = {
         id: generateId(),
         name: '',
+        path: currentFolderPath, // Set current folder path
         prompts: [],
         schedule: {
             enabled: false,

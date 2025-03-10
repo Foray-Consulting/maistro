@@ -16,6 +16,133 @@ class ConfigManager {
   }
 
   /**
+   * Create a virtual folder structure from config paths
+   * @returns {Object} - Folder structure
+   */
+  getFolderStructure() {
+    const folders = {};
+    
+    // Add all folders from config paths
+    this.configs.forEach(config => {
+      if (config.path) {
+        const pathParts = config.path.split('/');
+        let currentPath = '';
+        
+        // Create each level of the path
+        pathParts.forEach(part => {
+          if (part) {
+            currentPath = currentPath ? `${currentPath}/${part}` : part;
+            folders[currentPath] = {
+              name: part,
+              path: currentPath,
+              parentPath: currentPath.includes('/') 
+                ? currentPath.substring(0, currentPath.lastIndexOf('/')) 
+                : '',
+              isFolder: true
+            };
+          }
+        });
+      }
+    });
+    
+    return folders;
+  }
+  
+  /**
+   * Get all folders
+   * @returns {Array} - Array of folder objects
+   */
+  getAllFolders() {
+    const folderStructure = this.getFolderStructure();
+    return Object.values(folderStructure);
+  }
+  
+  /**
+   * Create a new folder
+   * @param {string} path - Folder path
+   * @returns {Object} - Created folder
+   */
+  async createFolder(path) {
+    // Nothing to save for folders as they're virtual
+    // Just return the folder object
+    return {
+      path,
+      name: path.includes('/') ? path.split('/').pop() : path,
+      parentPath: path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '',
+      isFolder: true
+    };
+  }
+  
+  /**
+   * Delete a folder and move its configs to parent folder
+   * @param {string} path - Folder path to delete
+   * @returns {boolean} - True if deleted
+   */
+  async deleteFolder(path) {
+    // Find configs in this folder or subfolders
+    const affected = this.configs.filter(config => 
+      config.path === path || config.path.startsWith(`${path}/`));
+    
+    // Get parent path
+    const parentPath = path.includes('/') 
+      ? path.substring(0, path.lastIndexOf('/')) 
+      : '';
+    
+    // Move configs to parent folder
+    let modified = false;
+    for (const config of affected) {
+      config.path = parentPath;
+      modified = true;
+    }
+    
+    if (modified) {
+      await this.saveConfigs();
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Rename a folder
+   * @param {string} oldPath - Current folder path
+   * @param {string} newPath - New folder path
+   * @returns {boolean} - True if renamed
+   */
+  async renameFolder(oldPath, newPath) {
+    // Find configs in this folder or subfolders
+    const affected = this.configs.filter(config => 
+      config.path === oldPath || config.path.startsWith(`${oldPath}/`));
+    
+    // Update paths
+    let modified = false;
+    for (const config of affected) {
+      config.path = config.path.replace(oldPath, newPath);
+      modified = true;
+    }
+    
+    if (modified) {
+      await this.saveConfigs();
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Move a config to a folder
+   * @param {string} configId - Config ID
+   * @param {string} folderPath - Destination folder path
+   * @returns {Object|null} - Updated config or null if not found
+   */
+  async moveConfigToFolder(configId, folderPath) {
+    const config = this.getConfigById(configId);
+    if (!config) return null;
+    
+    config.path = folderPath;
+    await this.saveConfigs();
+    return config;
+  }
+
+  /**
    * Load configurations from disk
    */
   loadConfigs() {
@@ -48,10 +175,16 @@ class ConfigManager {
 
   /**
    * Get all configurations
+   * @param {string} [folderPath] - Optional folder path to filter by
    * @returns {Array} - Array of configurations
    */
-  getAllConfigs() {
-    return this.configs;
+  getAllConfigs(folderPath) {
+    if (folderPath === undefined) {
+      return this.configs;
+    }
+    
+    // Filter configs by folder path
+    return this.configs.filter(config => config.path === folderPath);
   }
 
   /**
