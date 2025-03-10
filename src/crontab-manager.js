@@ -184,7 +184,24 @@ class CrontabManager {
       
       // Remove any existing entries for this config
       let lines = currentCrontab.split('\n');
-      lines = lines.filter(line => !line.includes(`(${configId})`));
+      let i = 0;
+      
+      // We need to check each line - if it's a comment with our config ID, 
+      // we remove both the comment line and the following cron line
+      while (i < lines.length) {
+        if (lines[i].includes(`(${configId})`)) {
+          // If this is a comment line for our config, remove it
+          lines.splice(i, 1);
+          
+          // If there's a line after this (which should be the cron command), 
+          // remove that too
+          if (i < lines.length) {
+            lines.splice(i, 1);
+          }
+        } else {
+          i++;
+        }
+      }
       
       // Write back to crontab
       const newCrontab = lines.join('\n').trim() + '\n';

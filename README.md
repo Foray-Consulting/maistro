@@ -77,7 +77,7 @@ Maistro allows you to specify which LLM model should process each prompt:
 4. Add or remove models as needed
 5. When creating prompts, you can select a specific model for each prompt or use the default
 
-Supported models include:
+Out of the box models include:
 - anthropic/claude-3.7-sonnet:thinking
 - anthropic/claude-3.7-sonnet
 - openai/o3-mini-high
