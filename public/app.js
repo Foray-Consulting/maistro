@@ -11,6 +11,18 @@ let activeMCPServerId = null;
 let editingMCPServer = null;
 let hasMCPServerUnsavedChanges = false;
 
+// Model state
+let modelConfig = {
+    defaultModel: 'anthropic/claude-3.7-sonnet',
+    availableModels: [
+        'anthropic/claude-3.7-sonnet:thinking',
+        'anthropic/claude-3.7-sonnet',
+        'openai/o3-mini-high',
+        'openai/gpt-4o-2024-11-20'
+    ],
+    apiKey: ''
+};
+
 // DOM Elements
 document.addEventListener('DOMContentLoaded', () => {
     // Config event listeners
@@ -32,6 +44,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Navigation event listeners
     document.getElementById('navConfigsBtn').addEventListener('click', () => switchSection('configs'));
     document.getElementById('navMCPServersBtn').addEventListener('click', () => switchSection('mcpServers'));
+    document.getElementById('navModelsBtn').addEventListener('click', () => switchSection('models'));
+    
+    // Model event listeners
+    document.getElementById('saveApiKeyBtn').addEventListener('click', saveApiKey);
+    document.getElementById('saveDefaultModelBtn').addEventListener('click', saveDefaultModel);
+    document.getElementById('addModelBtn').addEventListener('click', addModel);
     
     // Initialize
     loadConfigs();
@@ -44,10 +62,12 @@ function switchSection(section) {
     // Hide all sections
     document.getElementById('configsSection').classList.add('hidden');
     document.getElementById('mcpServersSection').classList.add('hidden');
+    document.getElementById('modelsSection').classList.add('hidden');
     
     // Deactivate all nav buttons
     document.getElementById('navConfigsBtn').classList.remove('active');
     document.getElementById('navMCPServersBtn').classList.remove('active');
+    document.getElementById('navModelsBtn').classList.remove('active');
     
     // Show the requested section
     if (section === 'configs') {
@@ -56,6 +76,10 @@ function switchSection(section) {
     } else if (section === 'mcpServers') {
         document.getElementById('mcpServersSection').classList.remove('hidden');
         document.getElementById('navMCPServersBtn').classList.add('active');
+    } else if (section === 'models') {
+        document.getElementById('modelsSection').classList.remove('hidden');
+        document.getElementById('navModelsBtn').classList.add('active');
+        loadModels();
     }
 }
 
@@ -70,6 +94,9 @@ function loadConfigs() {
         .catch(error => {
             console.error('Error loading configurations:', error);
         });
+        
+    // Also load models for prompt selections
+    loadModels();
 }
 
 function renderConfigsList() {
@@ -381,7 +408,7 @@ function renderPromptsList(prompts) {
     prompts.forEach((prompt, index) => {
         // Convert string prompts to objects if necessary
         const promptObj = typeof prompt === 'string' 
-            ? { text: prompt, mcpServerIds: [] } 
+            ? { text: prompt, mcpServerIds: [], model: null } 
             : prompt;
         
         // Ensure editingConfig.prompts has the object version
@@ -391,11 +418,29 @@ function renderPromptsList(prompts) {
         
         const promptElement = document.createElement('div');
         promptElement.className = 'prompt-item';
+        
+        // Create a dropdown of available models
+        let modelDropdown = '<select class="prompt-model">';
+        modelDropdown += '<option value="">Use Default Model</option>';
+        
+        modelConfig.availableModels.forEach(model => {
+            const selected = promptObj.model === model ? 'selected' : '';
+            modelDropdown += `<option value="${escapeHtml(model)}" ${selected}>${escapeHtml(model)}</option>`;
+        });
+        
+        modelDropdown += '</select>';
+        
         promptElement.innerHTML = `
             <div class="prompt-content">
-                <input type="text" class="prompt-text" value="${escapeHtml(promptObj.text)}" placeholder="Enter prompt text">
-                <div class="prompt-mcp-servers">
-                    <button class="btn small select-mcp-servers">MCP Servers: ${promptObj.mcpServerIds?.length || 0} enabled</button>
+                <div class="prompt-editor">
+                    <textarea class="prompt-text" placeholder="Enter prompt text">${escapeHtml(promptObj.text)}</textarea>
+                    <div class="prompt-options">
+                        <button class="btn small select-mcp-servers">MCP Servers: ${promptObj.mcpServerIds?.length || 0} enabled</button>
+                        <div class="model-selector">
+                            <label>Model:</label>
+                            ${modelDropdown}
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="prompt-tools">
@@ -414,7 +459,8 @@ function renderPromptsList(prompts) {
             if (typeof editingConfig.prompts[index] === 'string') {
                 editingConfig.prompts[index] = { 
                     text: input.value, 
-                    mcpServerIds: [] 
+                    mcpServerIds: [],
+                    model: null
                 };
             } else {
                 editingConfig.prompts[index].text = input.value;
@@ -425,6 +471,21 @@ function renderPromptsList(prompts) {
     
     document.querySelectorAll('.select-mcp-servers').forEach((btn, index) => {
         btn.addEventListener('click', () => showMCPServerSelector(index));
+    });
+    
+    document.querySelectorAll('.prompt-model').forEach((select, index) => {
+        select.addEventListener('change', () => {
+            if (typeof editingConfig.prompts[index] === 'string') {
+                editingConfig.prompts[index] = { 
+                    text: editingConfig.prompts[index], 
+                    mcpServerIds: [],
+                    model: select.value || null
+                };
+            } else {
+                editingConfig.prompts[index].model = select.value || null;
+            }
+            markAsUnsaved();
+        });
     });
     
     document.querySelectorAll('.move-up').forEach((btn, index) => {
@@ -611,7 +672,8 @@ function ensurePromptObjects(config) {
         if (typeof prompt === 'string') {
             return {
                 text: prompt,
-                mcpServerIds: []
+                mcpServerIds: [],
+                model: null
             };
         }
         return prompt;
@@ -1314,6 +1376,203 @@ function addEnvVar() {
 // Utilities
 function generateId() {
     return 'config-' + Date.now().toString();
+}
+
+// Model Management
+function loadModels() {
+    fetch('/api/models')
+        .then(response => response.json())
+        .then(data => {
+            modelConfig.defaultModel = data.defaultModel || 'anthropic/claude-3.7-sonnet';
+            modelConfig.availableModels = data.availableModels || [
+                'anthropic/claude-3.7-sonnet:thinking',
+                'anthropic/claude-3.7-sonnet',
+                'openai/o3-mini-high',
+                'openai/gpt-4o-2024-11-20'
+            ];
+            
+            // Only update API key status, not the actual key value
+            if (data.apiKey) {
+                modelConfig.apiKey = '***stored***';
+                document.getElementById('openRouterApiKey').placeholder = 'API key is stored';
+            } else {
+                modelConfig.apiKey = '';
+                document.getElementById('openRouterApiKey').placeholder = 'Enter your OpenRouter API key';
+            }
+            
+            renderModelsUI();
+        })
+        .catch(error => {
+            console.error('Error loading model configuration:', error);
+        });
+}
+
+function renderModelsUI() {
+    // Update default model dropdown
+    const defaultModelSelect = document.getElementById('defaultModel');
+    defaultModelSelect.innerHTML = '';
+    
+    modelConfig.availableModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = model;
+        option.selected = model === modelConfig.defaultModel;
+        defaultModelSelect.appendChild(option);
+    });
+    
+    // Update available models list
+    const modelsList = document.getElementById('availableModelsList');
+    modelsList.innerHTML = '';
+    
+    modelConfig.availableModels.forEach(model => {
+        const modelElement = document.createElement('div');
+        modelElement.className = 'model-item';
+        
+        modelElement.innerHTML = `
+            <div>
+                <span>${escapeHtml(model)}</span>
+                ${model === modelConfig.defaultModel ? '<span class="model-default-badge">Default</span>' : ''}
+            </div>
+            ${model === modelConfig.defaultModel ? '' : '<button class="icon-btn danger remove-model" data-model="' + escapeHtml(model) + '">✖️</button>'}
+        `;
+        
+        modelsList.appendChild(modelElement);
+    });
+    
+    // Add event listeners to remove buttons
+    document.querySelectorAll('.remove-model').forEach(btn => {
+        btn.addEventListener('click', () => {
+            removeModel(btn.dataset.model);
+        });
+    });
+    
+    // Update any prompt model selectors too
+    if (editingConfig && editingConfig.prompts) {
+        renderPromptsList(editingConfig.prompts);
+    }
+}
+
+function saveApiKey() {
+    const apiKey = document.getElementById('openRouterApiKey').value.trim();
+    if (!apiKey) {
+        alert('Please enter an API key');
+        return;
+    }
+    
+    fetch('/api/models/apikey', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ apiKey })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to save API key');
+        return response.json();
+    })
+    .then(data => {
+        alert('API key saved successfully');
+        document.getElementById('openRouterApiKey').value = '';
+        document.getElementById('openRouterApiKey').placeholder = 'API key is stored';
+        modelConfig.apiKey = '***stored***';
+    })
+    .catch(error => {
+        console.error('Error saving API key:', error);
+        alert('Failed to save API key: ' + error.message);
+    });
+}
+
+function saveDefaultModel() {
+    const model = document.getElementById('defaultModel').value;
+    if (!model) {
+        alert('Please select a model');
+        return;
+    }
+    
+    fetch('/api/models/default', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ model })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to set default model');
+        return response.json();
+    })
+    .then(data => {
+        alert('Default model set to: ' + model);
+        modelConfig.defaultModel = model;
+        renderModelsUI();
+    })
+    .catch(error => {
+        console.error('Error setting default model:', error);
+        alert('Failed to set default model: ' + error.message);
+    });
+}
+
+function addModel() {
+    const modelId = document.getElementById('newModelInput').value.trim();
+    if (!modelId) {
+        alert('Please enter a model ID');
+        return;
+    }
+    
+    // Check if model already exists
+    if (modelConfig.availableModels.includes(modelId)) {
+        alert('This model is already in the list');
+        return;
+    }
+    
+    fetch('/api/models', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ modelId })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to add model');
+        return response.json();
+    })
+    .then(data => {
+        // Update local state
+        modelConfig.availableModels = data.models;
+        document.getElementById('newModelInput').value = '';
+        renderModelsUI();
+    })
+    .catch(error => {
+        console.error('Error adding model:', error);
+        alert('Failed to add model: ' + error.message);
+    });
+}
+
+function removeModel(modelId) {
+    if (modelId === modelConfig.defaultModel) {
+        alert('Cannot remove the default model');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to remove the model "${modelId}"?`)) {
+        return;
+    }
+    
+    fetch(`/api/models/${encodeURIComponent(modelId)}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to remove model');
+        return response.json();
+    })
+    .then(data => {
+        // Update local state
+        modelConfig.availableModels = data.models;
+        renderModelsUI();
+    })
+    .catch(error => {
+        console.error('Error removing model:', error);
+        alert('Failed to remove model: ' + error.message);
+    });
 }
 
 function escapeHtml(str) {

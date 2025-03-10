@@ -14,10 +14,45 @@
             <nav class="main-nav">
                 <button id="navConfigsBtn" class="nav-btn active">Configurations</button>
                 <button id="navMCPServersBtn" class="nav-btn">MCP Servers</button>
+                <button id="navModelsBtn" class="nav-btn">Models</button>
             </nav>
         </header>
 
         <main>
+            <!-- Models Section -->
+            <div id="modelsSection" class="page-section hidden">
+                <section class="models-config">
+                    <h2>LLM Model Configuration</h2>
+                    
+                    <div class="form-group">
+                        <label for="openRouterApiKey">OpenRouter API Key</label>
+                        <div class="api-key-input">
+                            <input type="password" id="openRouterApiKey" placeholder="Enter your OpenRouter API key">
+                            <button id="saveApiKeyBtn" class="btn primary">Save API Key</button>
+                        </div>
+                        <p class="help-text">Your API key is stored locally and used to authenticate with OpenRouter.</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <h3>Default Model</h3>
+                        <div class="default-model-selector">
+                            <select id="defaultModel"></select>
+                            <button id="saveDefaultModelBtn" class="btn primary">Save Default</button>
+                        </div>
+                        <p class="help-text">This model will be used for all prompts unless overridden at the prompt level.</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <h3>Available Models</h3>
+                        <div id="availableModelsList" class="models-list"></div>
+                        <div class="model-add-form">
+                            <input type="text" id="newModelInput" placeholder="Model ID (e.g., anthropic/claude-3-opus)">
+                            <button id="addModelBtn" class="btn secondary">Add Model</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            
             <!-- Configurations Section -->
             <div id="configsSection" class="page-section active">
                 <section class="configs-list">

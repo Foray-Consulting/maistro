@@ -128,17 +128,29 @@ class ConfigManager {
     return typeof prompt === 'object' ? prompt.text : prompt;
   }
 
-  /**
-   * Get enabled MCP server IDs for a prompt
-   * @param {Object|string} prompt - Prompt object or string
-   * @returns {Array} - Array of enabled MCP server IDs
-   */
-  getPromptMCPServerIds(prompt) {
-    if (typeof prompt === 'object' && prompt.mcpServerIds) {
-      return prompt.mcpServerIds;
-    }
-    return [];
+/**
+ * Get enabled MCP server IDs for a prompt
+ * @param {Object|string} prompt - Prompt object or string
+ * @returns {Array} - Array of enabled MCP server IDs
+ */
+getPromptMCPServerIds(prompt) {
+  if (typeof prompt === 'object' && prompt.mcpServerIds) {
+    return prompt.mcpServerIds;
   }
+  return [];
+}
+
+/**
+ * Get model for a prompt
+ * @param {Object|string} prompt - Prompt object or string
+ * @returns {string|null} - Model ID or null if not set
+ */
+getPromptModel(prompt) {
+  if (typeof prompt === 'object' && prompt.model) {
+    return prompt.model;
+  }
+  return null;
+}
 }
 
 module.exports = ConfigManager;

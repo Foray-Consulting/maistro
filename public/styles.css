@@ -581,6 +581,105 @@ textarea {
     color: var(--text-light);
 }
 
+/* Models Section */
+.models-config {
+    background-color: var(--card-bg);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    grid-column: 1 / -1;
+}
+
+.models-config h2 {
+    margin-bottom: 1.5rem;
+    font-size: 1.25rem;
+}
+
+.api-key-input {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.api-key-input input {
+    flex: 1;
+}
+
+.default-model-selector {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.default-model-selector select {
+    flex: 1;
+}
+
+.models-list {
+    margin: 1rem 0;
+}
+
+.model-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.model-default-badge {
+    background-color: #dcfce7;
+    color: #15803d;
+    font-size: 0.8rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+    margin-left: 0.5rem;
+}
+
+.model-add-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.model-add-form input {
+    flex: 1;
+}
+
+/* Model selector in prompt editor */
+.prompt-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.prompt-content {
+    width: 100%;
+    min-height: 100px;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.prompt-options {
+    display: flex;
+    justify-content: space-between;
+}
+
+.model-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.model-selector select {
+    min-width: 200px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     main, .page-section {
@@ -589,5 +688,14 @@ textarea {
     
     .configs-list, .mcp-servers-list {
         max-height: none;
+    }
+    
+    .prompt-options {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .api-key-input, .model-add-form, .default-model-selector {
+        flex-direction: column;
     }
 }

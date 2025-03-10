@@ -11,6 +11,7 @@ const ConfigManager = require('./config-manager');
 const ExecutionManager = require('./execution-manager');
 const CrontabManager = require('./crontab-manager');
 const MCPServerManager = require('./mcp-server-manager');
+const ModelManager = require('./model-manager');
 
 // Enable debugging for execution manager
 process.env.DEBUG = 'true';
@@ -28,7 +29,8 @@ fs.ensureDirSync(path.join(dataDir, 'prompts'));
 // Initialize managers
 const configManager = new ConfigManager(path.join(dataDir, 'configs.json'));
 const mcpServerManager = new MCPServerManager(path.join(dataDir, 'mcp-servers.json'));
-const executionManager = new ExecutionManager(configManager, mcpServerManager, dataDir);
+const modelManager = new ModelManager(path.join(dataDir, 'models.json'));
+const executionManager = new ExecutionManager(configManager, mcpServerManager, modelManager, dataDir);
 const crontabManager = new CrontabManager(configManager, executionManager);
 
 // Middleware
@@ -36,6 +38,11 @@ app.use(morgan('dev'));
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
+
+// API health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
 // Connections map for WebSockets
 const connections = new Map();
@@ -125,6 +132,81 @@ app.delete('/api/mcp-servers/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting MCP server:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Model Configuration Routes
+app.get('/api/models', (req, res) => {
+  try {
+    const data = {
+      defaultModel: modelManager.getDefaultModel(),
+      availableModels: modelManager.getAllModels(),
+      apiKey: modelManager.getAPIKey() ? '***API KEY STORED***' : '',
+    };
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting model configuration:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/models/default', async (req, res) => {
+  try {
+    const { model } = req.body;
+    if (!model) {
+      return res.status(400).json({ error: 'No model specified' });
+    }
+    
+    await modelManager.setDefaultModel(model);
+    res.json({ success: true, defaultModel: model });
+  } catch (error) {
+    console.error('Error setting default model:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/models/apikey', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'No API key provided' });
+    }
+    
+    await modelManager.setAPIKey(apiKey);
+    res.json({ success: true, message: 'API key saved successfully' });
+  } catch (error) {
+    console.error('Error saving API key:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/models', async (req, res) => {
+  try {
+    const { modelId } = req.body;
+    if (!modelId) {
+      return res.status(400).json({ error: 'No model ID provided' });
+    }
+    
+    const models = await modelManager.addModel(modelId);
+    res.json({ success: true, models });
+  } catch (error) {
+    console.error('Error adding model:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/models/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    if (!modelId) {
+      return res.status(400).json({ error: 'No model ID specified' });
+    }
+    
+    const models = await modelManager.removeModel(modelId);
+    res.json({ success: true, models });
+  } catch (error) {
+    console.error('Error removing model:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -49,8 +49,9 @@ npm start
 1. Click "+ New Configuration"
 2. Enter a name
 3. Add prompts using the "Add Prompt" button
-4. Optionally configure a schedule
-5. Click "Save"
+4. For each prompt, select an optional model or use the default one
+5. Optionally configure a schedule
+6. Click "Save"
 
 ### Running a Configuration
 
@@ -65,6 +66,47 @@ npm start
 3. Choose frequency (daily, weekly, monthly)
 4. Set the time and day(s) as needed
 5. Save the configuration
+
+### Configuring LLM Models
+
+Maistro allows you to specify which LLM model should process each prompt:
+
+1. Navigate to the "Models" tab
+2. Enter your OpenRouter API key
+3. Set a default model
+4. Add or remove models as needed
+5. When creating prompts, you can select a specific model for each prompt or use the default
+
+Supported models include:
+- anthropic/claude-3.7-sonnet:thinking
+- anthropic/claude-3.7-sonnet
+- openai/o3-mini-high
+- openai/gpt-4o-2024-11-20
+
+You can add any model supported by OpenRouter.
+
+#### How Model Switching Works
+
+Maistro uses a sophisticated approach to model switching that preserves session context:
+
+1. **Initial Setup**: Configure your OpenRouter API key once through the Models tab.
+
+2. **Per-prompt Model Selection**: Each prompt in a configuration can use either:
+   - The default model (configured in Models tab)
+   - A specific model chosen from the dropdown in the prompt editor
+
+3. **Dynamic Model Switching**: When executing a configuration with multiple prompts:
+   - Maistro automatically updates the Goose configuration file before each prompt
+   - For the first prompt, Maistro starts a new session with the appropriate model
+   - For subsequent prompts, Maistro uses the `--resume` flag to maintain context
+   - This allows switching models mid-conversation while preserving context
+
+4. **Technical Implementation**:
+   - Maistro directly updates the `GOOSE_MODEL` parameter in the Goose YAML config
+   - This approach is more reliable than interactive configuration
+   - All API keys and models are stored securely in the Maistro data directory
+
+This implementation allows for sophisticated workflows where different prompts can leverage the strengths of different models while maintaining a coherent conversation throughout the execution.
 
 ### Using MCP Server Extensions
 

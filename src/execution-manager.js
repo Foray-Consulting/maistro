@@ -10,11 +10,13 @@ class ExecutionManager {
    * Constructor
    * @param {ConfigManager} configManager - Config manager instance
    * @param {MCPServerManager} mcpServerManager - MCP server manager instance
+   * @param {ModelManager} modelManager - Model manager instance
    * @param {string} dataDir - Data directory path
    */
-  constructor(configManager, mcpServerManager, dataDir) {
+  constructor(configManager, mcpServerManager, modelManager, dataDir) {
     this.configManager = configManager;
     this.mcpServerManager = mcpServerManager;
+    this.modelManager = modelManager;
     this.dataDir = dataDir;
     this.promptsDir = path.join(dataDir, 'prompts');
     this.activeExecutions = new Map();
@@ -75,6 +77,29 @@ class ExecutionManager {
 
     // Execute prompts in sequence
     this.executePromptSequence(executionId, ws);
+  }
+
+  /**
+   * Switch models by updating the Goose config file
+   * @param {string} modelId - Model ID to switch to
+   * @param {WebSocket} ws - WebSocket connection for streaming output
+   * @returns {Promise<void>} - Resolves when model is switched
+   */
+  async switchModel(modelId, ws) {
+    try {
+      this.log(`Switching to model: ${modelId}`);
+      this.sendOutput(ws, `Switching to model: ${modelId}...\n`);
+      
+      // Use the model manager to update the config file
+      await this.modelManager.switchToModel(modelId);
+      
+      this.log(`Successfully switched to model: ${modelId}`);
+      this.sendOutput(ws, `Model set to: ${modelId}\n`);
+    } catch (error) {
+      this.log(`Error switching to model: ${error.message}`, true);
+      this.sendOutput(ws, `Warning: Failed to switch model: ${error.message}\n`);
+      throw error;
+    }
   }
 
   /**
@@ -161,6 +186,29 @@ class ExecutionManager {
 
       // Get the prompt being executed
       const promptObj = config.prompts[currentIndex];
+      
+      // Check if we need to switch models for this prompt
+      const requestedModel = this.configManager.getPromptModel(promptObj);
+      if (requestedModel) {
+        try {
+          await this.switchModel(requestedModel, ws);
+        } catch (error) {
+          this.log(`Error switching model: ${error.message}`, true);
+          this.sendOutput(ws, `Warning: Failed to switch model: ${error.message}\n`);
+          // Continue with execution despite model switch failure
+        }
+      } else if (isFirstPrompt) {
+        // First prompt uses default model if none specified
+        try {
+          const defaultModel = this.modelManager.getDefaultModel();
+          this.log(`Using default model: ${defaultModel}`);
+          this.sendOutput(ws, `Setting default model: ${defaultModel}...\n`);
+          await this.switchModel(defaultModel, ws);
+        } catch (error) {
+          this.log(`Error setting default model: ${error.message}`, true);
+          this.sendOutput(ws, `Warning: Failed to set default model: ${error.message}\n`);
+        }
+      }
       
       // Check if this prompt has MCP server extensions enabled
       if (typeof promptObj === 'object' && promptObj.mcpServerIds && promptObj.mcpServerIds.length > 0) {
