@@ -671,6 +671,14 @@ main {
     gap: 0.5rem;
 }
 
+.mcp-server-description {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin-top: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .active-mcp-server {
     background-color: var(--card-bg);
     border-radius: 0.5rem;

@@ -1757,7 +1757,7 @@ function renderMCPServersList() {
                     <button class="icon-btn danger delete-mcp-server" title="Delete">🗑️</button>
                 </div>
             </div>
-            <div class="mcp-server-command">${server.command} ${server.args || ''}</div>
+            <div class="mcp-server-description">${server.description || 'No description provided'}</div>
         `;
         
         serverElement.addEventListener('click', (e) => {
