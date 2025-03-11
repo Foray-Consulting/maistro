@@ -107,8 +107,11 @@ class ExecutionManager {
    * @param {string} executionId - Execution ID
    * @param {WebSocket} ws - WebSocket connection
    * @param {number} currentIndex - Current prompt index
+   * @param {Object} [options] - Additional options
+   * @param {string} [options.parentExecutionId] - ID of the parent execution if this is a triggered execution
+   * @param {string} [options.sessionName] - Optional session name to use (for preserving session)
    */
-  async executePromptSequence(executionId, ws, currentIndex = 0) {
+  async executePromptSequence(executionId, ws, currentIndex = 0, options = {}) {
     const execution = this.activeExecutions.get(executionId);
     if (!execution) {
       this.log(`Execution not found: ${executionId}`, true);
@@ -121,14 +124,28 @@ class ExecutionManager {
     // Check if we've completed all prompts
     if (currentIndex >= promptFiles.length) {
       this.log(`All prompts completed for execution: ${executionId}`);
-      this.sendMessage(ws, 'end', { message: 'All prompts completed' });
+      
+      // Check if there's a trigger configured
+      if (config.trigger && config.trigger.configId) {
+        this.log(`Trigger found for configuration: ${config.id} -> ${config.trigger.configId}`);
+        this.sendOutput(ws, `\nTriggering execution of: ${config.trigger.configId}\n`);
+        
+        // Execute the triggered configuration
+        await this.executeTrigger(config, ws, executionId);
+      } else {
+        this.sendMessage(ws, 'end', { message: 'All prompts completed' });
+      }
+      
       this.activeExecutions.delete(executionId);
       return;
     }
 
     const promptFile = promptFiles[currentIndex];
     const isFirstPrompt = currentIndex === 0;
-    const sessionName = `maistro-${config.id}`;
+    
+    // Use the provided session name if available (for preserved sessions), otherwise create a new one
+    const sessionName = options.sessionName || `maistro-${config.id}`;
+    const isUsingParentSession = !!options.sessionName;
 
     try {
       // Notify client
@@ -155,8 +172,8 @@ class ExecutionManager {
       const absolutePromptPath = path.resolve(promptFile);
       this.log(`Using absolute prompt path: ${absolutePromptPath}`);
 
-      // Before starting a new session, attempt to delete any existing session file
-      if (isFirstPrompt) {
+      // Only clean up the session if we're not using a parent session
+      if (isFirstPrompt && !isUsingParentSession) {
         try {
           this.log(`Attempting to remove any existing session with name: ${sessionName}`);
           
@@ -176,11 +193,14 @@ class ExecutionManager {
           // Ignore cleanup errors, just log them
           this.log(`Error during session cleanup: ${error.message}`, true);
         }
-        
+      }
+      
+      // Set up command arguments
+      if (isFirstPrompt && !isUsingParentSession) {
         // First prompt: start a new session (with clean session now)
         args = ['run', '--name', sessionName, '--instructions', absolutePromptPath];
       } else {
-        // Subsequent prompts: resume existing session
+        // Subsequent prompts or using parent session: resume existing session
         args = ['run', '--resume', '--name', sessionName, '--instructions', absolutePromptPath];
       }
 
@@ -245,8 +265,9 @@ class ExecutionManager {
         this.sendMessage(ws, 'complete', { promptIndex: currentIndex });
         
         // Schedule the next prompt with a small delay
+        // Pass all options to maintain session name for entire sequence
         setTimeout(() => {
-          this.executePromptSequence(executionId, ws, currentIndex + 1);
+          this.executePromptSequence(executionId, ws, currentIndex + 1, options);
         }, 1000);
       });
     } catch (error) {
@@ -439,6 +460,84 @@ class ExecutionManager {
         type,
         ...data
       }));
+    }
+  }
+
+  /**
+   * Execute a triggered configuration
+   * @param {Object} parentConfig - The configuration with the trigger
+   * @param {WebSocket} ws - WebSocket connection from parent execution
+   * @param {string} parentExecutionId - The parent execution ID
+   */
+  async executeTrigger(parentConfig, ws, parentExecutionId) {
+    if (!parentConfig.trigger || !parentConfig.trigger.configId) {
+      this.log(`No trigger configured for ${parentConfig.id}`, true);
+      this.sendError(ws, 'No trigger configured');
+      return;
+    }
+
+    const triggeredConfigId = parentConfig.trigger.configId;
+    const preserveSession = parentConfig.trigger.preserveSession || false;
+
+    // Get the triggered configuration
+    const triggeredConfig = this.configManager.getConfigById(triggeredConfigId);
+    if (!triggeredConfig) {
+      this.log(`Triggered configuration not found: ${triggeredConfigId}`, true);
+      this.sendError(ws, `Triggered configuration not found: ${triggeredConfigId}`);
+      return;
+    }
+
+    this.log(`Executing triggered configuration: ${triggeredConfig.id} (${triggeredConfig.name})`);
+    this.sendOutput(ws, `\nStarting execution of triggered configuration: ${triggeredConfig.name}\n`);
+
+    // Prepare prompts for the triggered config
+    const promptFiles = [];
+    try {
+      for (let i = 0; i < triggeredConfig.prompts.length; i++) {
+        const promptPath = await this.configManager.savePromptToFile(
+          triggeredConfig.id,
+          triggeredConfig.prompts[i],
+          i,
+          this.promptsDir
+        );
+        promptFiles.push(promptPath);
+        this.log(`Saved prompt ${i+1} to: ${promptPath}`);
+      }
+    } catch (error) {
+      this.log(`Error preparing prompts for triggered config: ${error.message}`, true);
+      this.sendError(ws, `Failed to prepare prompts for triggered config: ${error.message}`);
+      return;
+    }
+
+    // Create a new execution ID for the triggered config
+    const triggeredExecutionId = `${triggeredConfig.id}-${Date.now()}`;
+    this.activeExecutions.set(triggeredExecutionId, {
+      config: triggeredConfig,
+      promptFiles,
+      isTriggered: true,
+      parentExecutionId
+    });
+    this.log(`Created triggered execution with ID: ${triggeredExecutionId}`);
+
+    // Set up options for execution
+    const options = {
+      parentExecutionId
+    };
+
+    // If preserving session, pass the parent session name
+    if (preserveSession) {
+      options.sessionName = `maistro-${parentConfig.id}`;
+      this.log(`Using parent session for triggered execution: ${options.sessionName}`);
+      this.sendOutput(ws, `Using shared session for triggered configuration\n`);
+    }
+
+    // Execute the prompted sequence
+    try {
+      await this.executePromptSequence(triggeredExecutionId, ws, 0, options);
+      this.log(`Triggered execution completed: ${triggeredExecutionId}`);
+    } catch (error) {
+      this.log(`Error in triggered execution: ${error.message}`, true);
+      this.sendError(ws, `Error in triggered execution: ${error.message}`);
     }
   }
   

@@ -1,0 +1,29 @@
+function moveConfigToFolder(configId, folderPath) {
+    fetch(`/api/configs/${configId}/move`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ folderPath })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to move configuration');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Update local state
+        const config = configs.find(c => c.id === configId);
+        if (config) {
+            config.path = folderPath;
+        }
+        
+        // Rerender the configs list
+        renderConfigsList();
+    })
+    .catch(error => {
+        console.error('Error moving configuration:', error);
+        alert('Failed to move configuration');
+    });
+}

@@ -8,7 +8,6 @@ let currentFolderPath = ''; // Current folder being viewed
 let folders = {}; // Folder structure
 let contextMenu = null; // Current open context menu
 let draggedItem = null; // Item being dragged
-let triggerDialogCurrentPath = ''; // Current path in trigger selection dialog
 
 // MCP Server state
 let mcpServers = [];
@@ -35,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
     document.getElementById('cancelConfigBtn').addEventListener('click', cancelConfigEdit);
     document.getElementById('addPromptBtn').addEventListener('click', addPrompt);
-    document.getElementById('configureTriggerBtn').addEventListener('click', showTriggerConfigDialog);
     document.getElementById('scheduleEnabled').addEventListener('change', toggleScheduleOptions);
     document.getElementById('scheduleFrequency').addEventListener('change', updateScheduleFields);
     document.getElementById('runConfigBtn').addEventListener('click', runConfig);
@@ -437,6 +435,9 @@ function showConfigContextMenu(e, config) {
         <div class="context-menu-item" data-action="edit">
             <span>✏️</span> Edit
         </div>
+        <div class="context-menu-item" data-action="copy">
+            <span>📋</span> Copy
+        </div>
         <div class="context-menu-item" data-action="run">
             <span>▶️</span> Run
         </div>
@@ -483,6 +484,9 @@ function showConfigContextMenu(e, config) {
             switch (action) {
                 case 'edit':
                     editConfig(config.id);
+                    break;
+                case 'copy':
+                    copyConfig(config.id);
                     break;
                 case 'run':
                     selectConfig(config.id);
@@ -768,6 +772,47 @@ function deleteFolder(path) {
     });
 }
 
+function copyConfig(configId) {
+    // Find the source configuration
+    const configToCopy = configs.find(c => c.id === configId);
+    if (!configToCopy) return;
+    
+    // Ask user for a name for the copy
+    const defaultName = `Copy of ${configToCopy.name}`;
+    const newName = prompt('Name for the copy:', defaultName);
+    
+    if (newName === null) return; // User canceled
+    
+    // Call API to copy the configuration
+    fetch(`/api/configs/${configId}/copy`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newName })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to copy configuration');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Add the new config to the local array
+        configs.push(data.config);
+        
+        // Refresh the configs list
+        renderConfigsList();
+        
+        // Optionally, select the new configuration for editing
+        selectConfig(data.config.id);
+    })
+    .catch(error => {
+        console.error('Error copying configuration:', error);
+        alert('Failed to copy configuration: ' + error.message);
+    });
+}
+
 function moveConfigToFolder(configId, folderPath) {
     fetch(`/api/configs/${configId}/move`, {
         method: 'PUT',
@@ -880,8 +925,6 @@ function getDragTarget(e) {
 }
 
 function selectConfig(configId) {
-    console.log("selectConfig called with configId:", configId);
-    
     activeConfigId = configId;
     
     // Update UI
@@ -890,78 +933,23 @@ function selectConfig(configId) {
     });
     
     const config = configs.find(c => c.id === configId);
-    console.log("Found config:", config);
+    if (!config) return;
     
-    if (!config) {
-        console.error("Configuration not found for id:", configId);
-        console.log("Available configs:", configs);
-        return;
-    }
+    // Show both edit form and execution panel
+    document.getElementById('configForm').classList.remove('hidden');
+    document.getElementById('executionPanel').classList.remove('hidden');
     
-    try {
-        // Show the active config section and both panels
-        console.log("Showing config form and execution panel");
-        const activeConfigSection = document.getElementById('activeConfigSection');
-        const configForm = document.getElementById('configForm');
-        const executionPanel = document.getElementById('executionPanel');
-        
-        console.log("activeConfigSection element:", activeConfigSection);
-        console.log("configForm element:", configForm);
-        console.log("executionPanel element:", executionPanel);
-        
-        // Make sure all panels are fully visible
-        if (activeConfigSection) {
-            activeConfigSection.style.display = 'block';
-            activeConfigSection.style.visibility = 'visible';
-            activeConfigSection.style.opacity = '1';
-        }
-        
-        // Ensure the config form is visible
-        configForm.classList.remove('hidden');
-        configForm.style.display = 'block';
-        configForm.style.visibility = 'visible';
-        configForm.style.opacity = '1';
-        
-        // Ensure the execution panel is visible
-        executionPanel.classList.remove('hidden');
-        executionPanel.style.display = 'block';
-        executionPanel.style.visibility = 'visible';
-        executionPanel.style.opacity = '1';
-        
-        // Force a layout recalculation
-        setTimeout(() => {
-            if (activeConfigSection) activeConfigSection.style.display = 'block';
-            configForm.style.display = 'block';
-            executionPanel.style.display = 'block';
-            
-            // Scroll to make the config form visible if needed
-            configForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-        
-        // Update config form with backward compatibility for prompts
-        console.log("Creating editing config with prompt objects");
-        editingConfig = ensurePromptObjects({ ...config });
-        
-        console.log("Setting form title and status");
-        document.getElementById('configFormTitle').textContent = config.name;
-        document.getElementById('configStatus').textContent = 'Saved';
-        document.getElementById('configStatus').className = 'status-indicator saved';
-        
-        console.log("Setting form fields");
-        document.getElementById('configName').value = config.name;
-        
-        console.log("Rendering prompts list");
-        renderPromptsList(editingConfig.prompts);
-        
-        console.log("Rendering trigger info");
-        renderTriggerInfo(); // Display trigger information if it exists
-        
-        console.log("Setting schedule options");
-        document.getElementById('scheduleEnabled').checked = config.schedule?.enabled || false;
-        toggleScheduleOptions();
-    } catch (error) {
-        console.error("Error in selectConfig:", error);
-    }
+    // Update config form with backward compatibility for prompts
+    editingConfig = ensurePromptObjects({ ...config });
+    
+    document.getElementById('configFormTitle').textContent = config.name;
+    document.getElementById('configStatus').textContent = 'Saved';
+    document.getElementById('configStatus').className = 'status-indicator saved';
+    
+    document.getElementById('configName').value = config.name;
+    renderPromptsList(editingConfig.prompts);
+    document.getElementById('scheduleEnabled').checked = config.schedule?.enabled || false;
+    toggleScheduleOptions();
     
     if (config.schedule) {
         document.getElementById('scheduleFrequency').value = config.schedule.frequency || 'daily';
@@ -1007,282 +995,6 @@ function markAsUnsaved() {
         hasUnsavedChanges = true;
         document.getElementById('configStatus').textContent = 'Unsaved';
         document.getElementById('configStatus').className = 'status-indicator unsaved';
-    }
-}
-
-// Trigger functionality
-function renderTriggerInfo() {
-    const container = document.getElementById('triggerSelector');
-    container.innerHTML = '';
-    
-    if (!editingConfig || !editingConfig.trigger) {
-        container.innerHTML = '<p>No trigger configured</p>';
-        return;
-    }
-    
-    const triggerId = editingConfig.trigger.configId;
-    const triggerConfig = configs.find(c => c.id === triggerId);
-    const preserveSession = editingConfig.trigger.preserveSession || false;
-    
-    if (!triggerConfig) {
-        container.innerHTML = `<p>Error: Trigger configuration not found (ID: ${triggerId})</p>`;
-        return;
-    }
-    
-    const triggerInfo = document.createElement('div');
-    triggerInfo.className = 'trigger-info';
-    
-    let path = '';
-    if (triggerConfig.path) {
-        path = ` (${triggerConfig.path})`;
-    }
-    
-    triggerInfo.innerHTML = `
-        <div class="trigger-config-name">${escapeHtml(triggerConfig.name)}${path}</div>
-        <div>Preserve session: ${preserveSession ? 'Yes' : 'No'}</div>
-        <button id="removeTriggerBtn" class="btn small">Remove Trigger</button>
-    `;
-    
-    container.appendChild(triggerInfo);
-    
-    // Add event listener for removal
-    document.getElementById('removeTriggerBtn').addEventListener('click', removeTrigger);
-}
-
-function removeTrigger() {
-    if (!editingConfig) return;
-    
-    delete editingConfig.trigger;
-    renderTriggerInfo();
-    markAsUnsaved();
-}
-
-function showTriggerConfigDialog() {
-    if (!editingConfig) return;
-    
-    // Set initial path for browser
-    triggerDialogCurrentPath = '';
-    
-    // Create overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'dialog-overlay';
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-    overlay.style.zIndex = '999';
-    overlay.style.display = 'flex';
-    overlay.style.justifyContent = 'center';
-    overlay.style.alignItems = 'center';
-    
-    // Create dialog
-    const dialog = document.createElement('div');
-    dialog.className = 'trigger-dialog';
-    dialog.style.backgroundColor = 'white';
-    dialog.style.borderRadius = '5px';
-    dialog.style.padding = '20px';
-    dialog.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
-    dialog.style.zIndex = '1000';
-    dialog.style.minWidth = '500px';
-    dialog.style.maxWidth = '80%';
-    
-    dialog.innerHTML = `
-        <div class="folder-dialog-header">
-            <h3>Select Configuration to Trigger</h3>
-        </div>
-        <div class="form-group">
-            <p>Browse and select a configuration to run after this one completes:</p>
-            <div class="folder-browser" id="triggerFolderBrowser"></div>
-            
-            <div class="form-check">
-                <input type="checkbox" id="preserveSession">
-                <label for="preserveSession">Preserve session (use same context)</label>
-            </div>
-            <p class="help-text">When enabled, the triggered configuration will continue with the same session ID, preserving the context from this configuration.</p>
-        </div>
-        <div class="folder-dialog-actions">
-            <button id="cancelTriggerBtn" class="btn">Cancel</button>
-            <button id="saveTriggerBtn" class="btn primary" disabled>Save Trigger</button>
-        </div>
-    `;
-    
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    
-    // Track selected config
-    let selectedConfigId = editingConfig.trigger ? editingConfig.trigger.configId : null;
-    
-    // If we already have a trigger, enable the save button
-    if (selectedConfigId) {
-        document.getElementById('saveTriggerBtn').disabled = false;
-    }
-    
-    // Populate folder browser
-    const folderBrowser = document.getElementById('triggerFolderBrowser');
-    renderTriggerFolderBrowser(folderBrowser, selectedConfigId);
-    
-    // Set preserve session state if existing trigger
-    if (editingConfig.trigger && editingConfig.trigger.preserveSession) {
-        document.getElementById('preserveSession').checked = true;
-    }
-    
-    // Add event listeners for the cancel button
-    document.getElementById('cancelTriggerBtn').addEventListener('click', () => {
-        document.body.removeChild(overlay);
-    });
-    
-    // Add event listener for the save button - will work regardless of when a config is selected
-    document.getElementById('saveTriggerBtn').addEventListener('click', () => {
-        // Get the currently selected config
-        const selectedItem = document.querySelector('.config-item-trigger.selected-trigger');
-        if (!selectedItem) {
-            alert('Please select a configuration to trigger');
-            return;
-        }
-        
-        const configId = selectedItem.dataset.id;
-        const preserveSession = document.getElementById('preserveSession').checked;
-        
-        // Update trigger in editing config
-        editingConfig.trigger = {
-            configId: configId,
-            preserveSession
-        };
-        
-        // Close dialog
-        document.body.removeChild(overlay);
-        
-        // Update trigger display
-        renderTriggerInfo();
-        
-        // Mark as unsaved
-        markAsUnsaved();
-    });
-}
-
-function renderTriggerFolderBrowser(container, selectedConfigId) {
-    container.innerHTML = '';
-    
-    // Create breadcrumb navigation
-    const breadcrumbDiv = document.createElement('div');
-    breadcrumbDiv.className = 'folder-breadcrumb';
-    
-    // Add root link
-    const rootLink = document.createElement('span');
-    rootLink.className = 'breadcrumb-item';
-    rootLink.textContent = 'Home';
-    rootLink.addEventListener('click', () => {
-        triggerDialogCurrentPath = '';
-        renderTriggerFolderBrowser(container, selectedConfigId);
-    });
-    breadcrumbDiv.appendChild(rootLink);
-    
-    // Add path segments if not at root
-    if (triggerDialogCurrentPath) {
-        const pathParts = triggerDialogCurrentPath.split('/');
-        let currentPath = '';
-        
-        pathParts.forEach((part, index) => {
-            // Add separator
-            const separator = document.createElement('span');
-            separator.className = 'breadcrumb-separator';
-            separator.textContent = '/';
-            breadcrumbDiv.appendChild(separator);
-            
-            // Update current path
-            currentPath = currentPath ? `${currentPath}/${part}` : part;
-            
-            // Add folder link
-            const folderLink = document.createElement('span');
-            folderLink.className = 'breadcrumb-item';
-            folderLink.textContent = part;
-            
-            // Last item is current folder, not clickable
-            if (index === pathParts.length - 1) {
-                folderLink.style.fontWeight = 'bold';
-                folderLink.style.color = 'var(--text-color)';
-            } else {
-                const path = currentPath; // Capture current path for click handler
-                folderLink.addEventListener('click', () => {
-                    triggerDialogCurrentPath = path;
-                    renderTriggerFolderBrowser(container, selectedConfigId);
-                });
-            }
-            
-            breadcrumbDiv.appendChild(folderLink);
-        });
-    }
-    
-    container.appendChild(breadcrumbDiv);
-    
-    // Filter subfolders and configs for current path
-    const subfolders = Object.values(folders).filter(folder => 
-        folder.parentPath === triggerDialogCurrentPath);
-    
-    const folderConfigs = configs.filter(config => 
-        (config.path || '') === triggerDialogCurrentPath && config.id !== editingConfig.id); // Exclude current config
-    
-    // Render subfolders
-    subfolders.forEach(folder => {
-        const folderElement = document.createElement('div');
-        folderElement.className = 'folder-item-trigger';
-        folderElement.innerHTML = `
-            <span class="folder-icon">📁</span>
-            <span>${escapeHtml(folder.name)}</span>
-        `;
-        
-        folderElement.addEventListener('click', () => {
-            triggerDialogCurrentPath = folder.path;
-            renderTriggerFolderBrowser(container, selectedConfigId);
-        });
-        
-        container.appendChild(folderElement);
-    });
-    
-    // Render configs
-    folderConfigs.forEach(config => {
-        const configElement = document.createElement('div');
-        configElement.className = 'config-item-trigger';
-        configElement.dataset.id = config.id;
-        
-        // Check if this config is already selected as the trigger
-        if (selectedConfigId === config.id) {
-            configElement.classList.add('selected-trigger');
-        }
-        
-        configElement.innerHTML = `
-            <span class="config-icon">📄</span>
-            <span>${escapeHtml(config.name)}</span>
-        `;
-        
-        configElement.addEventListener('click', () => {
-            // Remove selected class from all configs
-            document.querySelectorAll('.config-item-trigger').forEach(item => {
-                item.classList.remove('selected-trigger');
-            });
-            
-            // Add selected class to this config
-            configElement.classList.add('selected-trigger');
-            
-            // Enable save button
-            const saveBtn = document.getElementById('saveTriggerBtn');
-            saveBtn.disabled = false;
-            
-            // Update the selected config ID
-            selectedConfigId = config.id;
-        });
-        
-        container.appendChild(configElement);
-    });
-    
-    // Show empty state if no folders or configs
-    if (subfolders.length === 0 && folderConfigs.length === 0) {
-        const emptyDiv = document.createElement('div');
-        emptyDiv.className = 'empty-state';
-        emptyDiv.innerHTML = 'This folder is empty';
-        container.appendChild(emptyDiv);
     }
 }
 

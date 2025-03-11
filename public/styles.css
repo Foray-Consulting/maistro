@@ -2,9 +2,11 @@
 :root {
     --primary-color: #2563eb;
     --primary-hover: #1d4ed8;
+    --primary-color-light: #dbeafe;
     --secondary-color: #6b7280;
     --secondary-hover: #4b5563;
     --bg-color: #f9fafb;
+    --bg-light: #f3f4f6;
     --card-bg: #ffffff;
     --border-color: #e5e7eb;
     --text-color: #111827;
@@ -97,6 +99,7 @@ main {
     display: grid;
     grid-template-columns: 300px 1fr;
     gap: 2rem;
+    min-height: calc(100vh - 200px);
 }
 
 /* Configurations List */
@@ -309,10 +312,88 @@ main {
 
 /* Active Configuration */
 .active-config {
-    background-color: var(--card-bg);
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  overflow: visible;
+  display: block !important;
+  width: 100%;
+  max-width: calc(100vw - 340px);
+  border-radius: 0.5rem;
+  background-color: var(--bg-color);
+  padding: 1rem;
+  min-height: 500px;
+  z-index: 1;
+  position: relative;
+}
+
+#configForm, #executionPanel {
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+  width: 100%;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 200px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Trigger Styles */
+.trigger-options {
+  margin-top: 10px;
+}
+
+#triggerSelector {
+  margin: 10px 0;
+}
+
+.trigger-info {
+  background-color: var(--bg-light);
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.trigger-config-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.trigger-dialog {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.folder-browser {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.folder-item-trigger, .config-item-trigger {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.folder-item-trigger:hover, .config-item-trigger:hover {
+  background-color: var(--bg-light);
+}
+
+.folder-item-trigger {
+  font-weight: bold;
+}
+
+.config-item-trigger {
+  padding-left: 20px;
+}
+
+.selected-trigger {
+  background-color: var(--primary-color-light);
 }
 
 .config-container {

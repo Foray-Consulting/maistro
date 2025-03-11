@@ -61,7 +61,7 @@
                     <button id="createConfigBtn" class="btn primary">+ New Configuration</button>
                 </section>
 
-                <section class="active-config">
+                <section class="active-config" id="activeConfigSection">
                     <div class="config-container">
                         <div id="configForm">
                             <div class="form-header">
@@ -84,6 +84,15 @@
                                 <h3>Prompts</h3>
                                 <div id="promptsList"></div>
                                 <button id="addPromptBtn" class="btn secondary">+ Add Prompt</button>
+                            </div>
+
+                            <div class="form-group">
+                                <h3>Trigger (Optional)</h3>
+                                <div class="trigger-options">
+                                    <p class="help-text">Configure this to run another configuration when this one completes.</p>
+                                    <div id="triggerSelector"></div>
+                                    <button id="configureTriggerBtn" class="btn secondary">Configure Trigger</button>
+                                </div>
                             </div>
 
                             <div class="form-group">

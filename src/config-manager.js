@@ -128,21 +128,6 @@ class ConfigManager {
   }
   
   /**
-   * Move a config to a folder
-   * @param {string} configId - Config ID
-   * @param {string} folderPath - Destination folder path
-   * @returns {Object|null} - Updated config or null if not found
-   */
-  async moveConfigToFolder(configId, folderPath) {
-    const config = this.getConfigById(configId);
-    if (!config) return null;
-    
-    config.path = folderPath;
-    await this.saveConfigs();
-    return config;
-  }
-
-  /**
    * Load configurations from disk
    */
   loadConfigs() {
@@ -151,14 +136,72 @@ class ConfigManager {
         const data = fs.readFileSync(this.configPath, 'utf8');
         this.configs = JSON.parse(data);
       } else {
-        // Initialize with empty array if file doesn't exist
+        // If file doesn't exist, start with empty configs array
         this.configs = [];
-        fs.writeFileSync(this.configPath, JSON.stringify(this.configs, null, 2));
+        // Ensure the directory exists
+        fs.ensureDirSync(path.dirname(this.configPath));
+        // Create empty configs file
+        fs.writeFileSync(this.configPath, JSON.stringify([], null, 2));
       }
     } catch (error) {
       console.error('Error loading configs:', error);
+      // Start with empty configs if there was an error
       this.configs = [];
     }
+  }
+
+  /**
+   * Validate a configuration object
+   * @param {Object} config - The configuration object to validate
+   * @returns {boolean} True if valid, false otherwise
+   */
+  validateConfig(config) {
+    if (!config || typeof config !== 'object') {
+      console.error('Invalid configuration: Not an object');
+      return false;
+    }
+
+    if (!config.id || typeof config.id !== 'string') {
+      console.error('Invalid configuration: Missing or invalid id');
+      return false;
+    }
+
+    if (!config.name || typeof config.name !== 'string') {
+      console.error('Invalid configuration: Missing or invalid name');
+      return false;
+    }
+
+    if (!Array.isArray(config.prompts)) {
+      console.error('Invalid configuration: prompts is not an array');
+      return false;
+    }
+
+    if (config.prompts.length === 0) {
+      console.error('Invalid configuration: prompts array is empty');
+      return false;
+    }
+
+    // Validate trigger if present
+    if (config.trigger) {
+      if (typeof config.trigger !== 'object') {
+        console.error('Invalid configuration: trigger is not an object');
+        return false;
+      }
+
+      if (!config.trigger.configId || typeof config.trigger.configId !== 'string') {
+        console.error('Invalid configuration: trigger missing or invalid configId');
+        return false;
+      }
+
+      // preserveSession is optional, but if provided must be boolean
+      if (config.trigger.preserveSession !== undefined && 
+          typeof config.trigger.preserveSession !== 'boolean') {
+        console.error('Invalid configuration: trigger.preserveSession must be a boolean');
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
