@@ -619,6 +619,41 @@ main {
     font-family: 'Courier New', Courier, monospace;
 }
 
+/* Message type styling */
+.terminal-content .model-response {
+    color: white;
+    background-color: #2d3748;
+    padding: 10px;
+    border-radius: 5px;
+    border-left: 4px solid #38a169;
+    margin: 8px 0;
+}
+
+.terminal-content .model-info {
+    color: #3498db;
+    font-weight: bold;
+    padding: 4px 0;
+    margin: 2px 0;
+}
+
+.terminal-content .system {
+    color: #a0aec0;
+    padding: 2px 0;
+}
+
+.terminal-content .mcp-info {
+    color: #f6ad55;
+    font-weight: bold;
+    padding: 2px 0;
+}
+
+.terminal-content .completion {
+    color: #48bb78;
+    font-weight: bold;
+    padding: 2px 0;
+    margin-top: 4px;
+}
+
 .terminal-content .info {
     color: #5bc0de;
 }

@@ -1834,16 +1834,46 @@ function runConfig() {
     // Connect to WebSocket for real-time output
     connectSocket(activeConfigId);
     
-    // Trigger execution
-    fetch(`/api/run/${activeConfigId}`, {
-        method: 'POST'
-    })
-    .catch(error => {
+    // Add a small delay to ensure WebSocket connection is established
+    setTimeout(() => {
+        // Trigger execution
+        fetch(`/api/run/${activeConfigId}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.needsReconnect) {
+                console.log('Server indicates WebSocket connection needs to be reestablished');
+                // Wait a bit then retry connection and execution
+                appendOutput('Reconnecting to server...', 'info');
+                
+                // Try to reconnect the socket
+                if (socket) {
+                    socket.close();
+                }
+                
+                // Wait a moment and try again
+                setTimeout(() => {
+                    console.log('Attempting reconnection...');
+                    connectSocket(activeConfigId);
+                    
+                    // After reconnection, try execution again
+                    setTimeout(() => {
+                        fetch(`/api/run/${activeConfigId}`, { method: 'POST' })
+                        .catch(error => handleExecutionError(error));
+                    }, 1000);
+                }, 1000);
+            }
+        })
+        .catch(error => handleExecutionError(error));
+    }, 500);
+    
+    function handleExecutionError(error) {
         console.error('Error starting execution:', error);
         appendOutput('Error starting execution: ' + error.message, 'error');
         runBtn.disabled = false;
         runBtn.textContent = 'Run Now';
-    });
+    }
 }
 
 /**
@@ -1936,7 +1966,13 @@ function connectSocket(configId) {
                 // For output type, specifically log the content length
                 console.log('Output content length:', data.content?.length || 0);
                 if (data.content && data.content.trim().length > 0) {
-                    appendOutput(data.content);
+                    // Use the messageType for styling if available
+                    if (data.messageType) {
+                        console.log('Message type for styling:', data.messageType);
+                        appendOutput(data.content, data.messageType);
+                    } else {
+                        appendOutput(data.content);
+                    }
                 }
             } else if (data.type === 'start') {
                 appendOutput(`Starting prompt ${data.promptIndex + 1}/${data.totalPrompts}: ${data.prompt}\n`, 'info');
@@ -2029,8 +2065,10 @@ function appendOutput(text, className = '') {
     pre.style.whiteSpace = 'pre-wrap';
     pre.style.wordBreak = 'break-word';
     
+    // Apply the appropriate class based on message type
     if (className) {
-        pre.className = className;
+        // Apply the class - supports both our new message types and legacy classes
+        pre.className = className; 
     }
     
     // Handle ANSI escape codes

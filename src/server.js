@@ -171,8 +171,22 @@ app.post('/api/run/:id', async (req, res) => {
       return res.status(404).json({ error: 'Configuration not found' });
     }
     
+    // Get the WebSocket connection
+    const ws = connections.get(id);
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn(`No active WebSocket connection found for config ID: ${id}. Waiting for connection...`);
+      
+      // Return success but let client know of potential issue
+      return res.json({ 
+        success: true, 
+        message: 'Execution queued, waiting for WebSocket connection',
+        needsReconnect: true 
+      });
+    }
+    
     // Start execution in background
-    executionManager.executeConfig(config, connections.get(id));
+    executionManager.executeConfig(config, ws);
     
     res.json({ success: true, message: 'Execution started' });
   } catch (error) {

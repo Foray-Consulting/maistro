@@ -308,8 +308,7 @@ class ExecutionManager {
         const fullCommand = `${command} ${cmdArgs.join(' ')}`;
         this.log(`Full command: ${fullCommand}`);
         
-        // Send initial command notification to client
-        this.sendOutput(ws, `Executing command: ${fullCommand}\n`);
+        // Log command for debug but don't send to client to keep output cleaner
         
         // Use explicit shell and options
         const childProcess = spawn(fullCommand, [], {
@@ -323,6 +322,7 @@ class ExecutionManager {
         let errorOutput = '';
         
         this.log(`Process spawned with PID: ${childProcess.pid || 'unknown'}`);
+        // Only send the starting message for clarity
         this.sendOutput(ws, `Starting execution...\n`);
 
         // Buffer to collect partial lines
@@ -405,30 +405,125 @@ class ExecutionManager {
    * @param {WebSocket} ws - WebSocket connection
    * @param {string} content - Output content
    */
-  sendOutput(ws, content) {
-    if (!content) return;
+  /**
+   * Clean output to make it more human-readable
+   * @param {string} content - The original content to clean
+   * @return {string} - Cleaned and formatted content
+   */
+  cleanOutput(content) {
+    if (!content) return '';
     
-    // Ensure the content is a string
+    // Convert to string if it's not already
     const contentStr = String(content);
     
-    // Only send if we have a valid WebSocket connection
-    if (ws && ws.readyState === 1) {
-      try {
-        // Log output size being sent (for debugging)
-        this.log(`Sending output of size ${contentStr.length} bytes`);
-        
-        // Send the output
-        ws.send(JSON.stringify({
-          type: 'output',
-          content: contentStr
-        }));
-      } catch (error) {
-        this.log(`Error sending output: ${error.message}`, true);
-      }
-    } else if (!ws) {
-      this.log('Cannot send output: WebSocket connection is null', true);
-    } else if (ws.readyState !== 1) {
-      this.log(`Cannot send output: WebSocket connection is in state ${ws.readyState}`, true);
+    // Specifically filter out only exact logging lines, not partial matches
+    const loggingLineRegex = /^\s*logging to.*\.jsonl\s*$/;
+    if (loggingLineRegex.test(contentStr.trim())) {
+      return '';
+    }
+    
+    // Extract AI response content from ANSI codes
+    // This regex matches quoted content which is typically the AI response
+    const aiResponseRegex = /"([^"]+)"/;
+    const aiResponseMatch = contentStr.match(aiResponseRegex);
+    
+    // Check if this is a model switching message
+    if (contentStr.includes('Switching to model:') || contentStr.includes('Model set to:')) {
+      // Keep model switching messages but clean them up
+      return contentStr.replace(/Executing command:.*?\n/, '');
+    }
+    
+    // Check if this appears to be prompt start info
+    if (contentStr.includes('Starting prompt')) {
+      // Clean up prompt info, removing object notation
+      return contentStr.replace(/\[object Object\]/g, '');
+    }
+    
+    // If we found a quoted response or markdown formatted response, return just that
+    if (aiResponseMatch && aiResponseMatch[1]) {
+      return aiResponseMatch[1];
+    }
+    
+    // For MCP extension messages, clean it up but keep the essential info
+    if (contentStr.includes('Using MCP extension:')) {
+      return contentStr;
+    }
+    
+    // For success/completion messages, keep them clean
+    if (contentStr.includes('Prompt completed') || 
+        contentStr.includes('Execution completed') ||
+        contentStr.includes('Starting execution')) {
+      return contentStr;
+    }
+    
+    // For lines with ANSI formatting (AI output), extract the content
+    // The goose output from Claude often has color codes and terminal formatting
+    if (contentStr.includes('\u001b[')) {
+      // Handle ANSI-formatted text which is likely AI output
+      // Strip ANSI codes but keep the actual text content
+      return contentStr.replace(/\u001b\[\d+(?:;\d+)*m/g, '');
+    }
+    
+    // For trigger execution messages, simplify them
+    if (contentStr.includes('Triggering execution of:')) {
+      return contentStr;
+    }
+    
+    // Look for actual content in the text (usually after markdown headers)
+    const contentAfterHeaderRegex = /^.*?\n(.*)/s;
+    const contentMatch = contentStr.match(contentAfterHeaderRegex);
+    if (contentMatch && contentMatch[1] && contentMatch[1].trim().length > 10) {
+      return contentMatch[1].trim();
+    }
+    
+    // For all other content, leave as is but remove command execution info
+    return contentStr.replace(/Executing command:.*?\n/, '');
+  }
+
+  /**
+   * Send output via WebSocket with robust error handling
+   * @param {WebSocket} ws - WebSocket connection
+   * @param {string} content - Output content
+   * @returns {boolean} - Whether the output was successfully sent
+   */
+  sendOutput(ws, content) {
+    if (!content) return false;
+    
+    // Clean the content to make it more human-readable
+    const cleanedContent = this.cleanOutput(content);
+    
+    // Skip empty content after cleaning
+    if (!cleanedContent || !cleanedContent.trim()) return false;
+    
+    // Detailed WebSocket state validation
+    if (!ws) {
+      // Only log occasionally to avoid spamming the console
+      this.log('Skipping output: WebSocket connection is null', true);
+      return false;
+    }
+    
+    // Check the WebSocket ready state
+    // 0: CONNECTING, 1: OPEN, 2: CLOSING, 3: CLOSED
+    if (ws.readyState !== 1) {
+      this.log(`Skipping output: WebSocket connection is in state ${ws.readyState} (not OPEN)`, true);
+      return false;
+    }
+    
+    // At this point, we have a valid WebSocket connection
+    try {
+      // Log output size for debugging
+      this.log(`Sending output of size ${cleanedContent.length} bytes`);
+      
+      // Send the cleaned output
+      ws.send(JSON.stringify({
+        type: 'output',
+        content: cleanedContent
+      }));
+      
+      return true;
+    } catch (error) {
+      this.log(`Error sending output: ${error.message}`, true);
+      return false;
     }
   }
 
@@ -456,6 +551,15 @@ class ExecutionManager {
   sendMessage(ws, type, data) {
     this.log(`Sending message of type '${type}' to client`);
     if (ws && ws.readyState === 1) {
+      // If this is a start message for a prompt, clean up the prompt object display
+      if (type === 'start' && data.prompt) {
+        // Format prompt nicely for display
+        // If it's an object with text property, use just the text
+        if (typeof data.prompt === 'object' && data.prompt.text) {
+          data.prompt = data.prompt.text;
+        }
+      }
+      
       ws.send(JSON.stringify({
         type,
         ...data
