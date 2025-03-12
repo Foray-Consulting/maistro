@@ -94,16 +94,22 @@ function switchSection(section) {
     document.getElementById('navMCPServersBtn').classList.remove('active');
     document.getElementById('navModelsBtn').classList.remove('active');
     
+    // Update page title
+    const pageTitle = document.getElementById('pageTitle');
+    
     // Show the requested section
     if (section === 'configs') {
         document.getElementById('configsSection').classList.remove('hidden');
         document.getElementById('navConfigsBtn').classList.add('active');
+        pageTitle.textContent = 'Configurations';
     } else if (section === 'mcpServers') {
         document.getElementById('mcpServersSection').classList.remove('hidden');
         document.getElementById('navMCPServersBtn').classList.add('active');
+        pageTitle.textContent = 'MCP Servers';
     } else if (section === 'models') {
         document.getElementById('modelsSection').classList.remove('hidden');
         document.getElementById('navModelsBtn').classList.add('active');
+        pageTitle.textContent = 'Model Configuration';
         loadModels();
     }
 }
@@ -237,11 +243,15 @@ function renderConfigsList() {
         folderElement.draggable = true;
         
         folderElement.innerHTML = `
-            <span class="folder-icon">📁</span>
+            <span class="material-icons-outlined folder-icon">folder</span>
             <div class="folder-name">${folder.name}</div>
             <div class="folder-actions">
-                <button class="icon-btn rename-folder" title="Rename">✏️</button>
-                <button class="icon-btn danger delete-folder" title="Delete">🗑️</button>
+                <button class="icon-btn rename-folder" title="Rename">
+                    <span class="material-icons-outlined">edit</span>
+                </button>
+                <button class="icon-btn danger delete-folder" title="Delete">
+                    <span class="material-icons-outlined">delete</span>
+                </button>
             </div>
         `;
         
@@ -282,12 +292,16 @@ function renderConfigsList() {
         }
         
         configElement.innerHTML = `
-            <span class="config-icon">📄</span>
+            <span class="material-icons-outlined config-icon">description</span>
             <div class="config-item-header">
                 <strong>${config.name}</strong>
                 <div class="config-actions">
-                    <button class="icon-btn edit-config" title="Edit">✏️</button>
-                    <button class="icon-btn danger delete-config" title="Delete">🗑️</button>
+                    <button class="icon-btn edit-config" title="Edit">
+                        <span class="material-icons-outlined">edit</span>
+                    </button>
+                    <button class="icon-btn danger delete-config" title="Delete">
+                        <span class="material-icons-outlined">delete</span>
+                    </button>
                 </div>
             </div>
             <div class="config-scheduled">${scheduleInfo}</div>
@@ -1453,6 +1467,15 @@ function deleteConfig(configId) {
     });
 }
 
+// Add document-wide event listeners for expand/collapse functionality
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing DOMContentLoaded code here ...
+    
+    // Add event listeners for expand/collapse all prompts
+    document.getElementById('expandAllPromptsBtn').addEventListener('click', expandAllPrompts);
+    document.getElementById('collapseAllPromptsBtn').addEventListener('click', collapseAllPrompts);
+});
+
 // Prompt management
 function renderPromptsList(prompts) {
     const container = document.getElementById('promptsList');
@@ -1473,8 +1496,14 @@ function renderPromptsList(prompts) {
             editingConfig.prompts[index] = promptObj;
         }
         
-        const promptElement = document.createElement('div');
-        promptElement.className = 'prompt-item';
+        // Default to collapsed state, except the first prompt
+        const isExpanded = index === 0;
+        
+        // Get preview text - first line or truncated content
+        let previewText = promptObj.text.split('\n')[0] || '';
+        if (previewText.length > 40) {
+            previewText = previewText.substring(0, 40) + '...';
+        }
         
         // Create a dropdown of available models
         let modelDropdown = '<select class="prompt-model">';
@@ -1487,30 +1516,70 @@ function renderPromptsList(prompts) {
         
         modelDropdown += '</select>';
         
-        promptElement.innerHTML = `
-            <div class="prompt-content">
-                <div class="prompt-editor">
-                    <textarea class="prompt-text" placeholder="Enter prompt text">${escapeHtml(promptObj.text)}</textarea>
-                    <div class="prompt-options">
-                        <button class="btn small select-mcp-servers">MCP Servers: ${promptObj.mcpServerIds?.length || 0} enabled</button>
-                        <div class="model-selector">
-                            <label>Model:</label>
-                            ${modelDropdown}
-                        </div>
-                    </div>
-                </div>
+        // Create the prompt card
+        const promptCard = document.createElement('div');
+        promptCard.className = 'prompt-card';
+        promptCard.dataset.index = index;
+        
+        // Card header with collapse/expand functionality
+        const cardHeader = document.createElement('div');
+        cardHeader.className = 'prompt-card-header';
+        cardHeader.innerHTML = `
+            <div class="prompt-title">
+                <div class="prompt-number">${index + 1}</div>
+                <div class="prompt-preview">${escapeHtml(previewText)}</div>
             </div>
-            <div class="prompt-tools">
-                ${index > 0 ? '<button class="icon-btn move-up" title="Move Up">⬆️</button>' : ''}
-                ${index < prompts.length - 1 ? '<button class="icon-btn move-down" title="Move Down">⬇️</button>' : ''}
-                <button class="icon-btn danger remove-prompt" title="Remove">✖️</button>
+            <div class="prompt-actions">
+                ${index > 0 ? '<button class="icon-btn move-up-prompt" title="Move Up"><span class="material-icons-outlined">arrow_upward</span></button>' : ''}
+                ${index < prompts.length - 1 ? '<button class="icon-btn move-down-prompt" title="Move Down"><span class="material-icons-outlined">arrow_downward</span></button>' : ''}
+                <button class="icon-btn danger remove-prompt" title="Remove"><span class="material-icons-outlined">delete</span></button>
+                <button class="prompt-collapse-btn ${isExpanded ? 'expanded' : ''}">
+                    <span class="material-icons-outlined">${isExpanded ? 'expand_less' : 'expand_more'}</span>
+                </button>
             </div>
         `;
         
-        container.appendChild(promptElement);
+        // Card content - initially hidden or shown based on isExpanded
+        const cardContent = document.createElement('div');
+        cardContent.className = 'prompt-content';
+        cardContent.style.display = isExpanded ? 'block' : 'none';
+        cardContent.innerHTML = `
+            <div class="prompt-editor">
+                <textarea class="prompt-text" placeholder="Enter prompt text">${escapeHtml(promptObj.text)}</textarea>
+                <div class="prompt-options">
+                    <button class="btn small select-mcp-servers">
+                        <span class="material-icons-outlined">dns</span>
+                        MCP Servers: ${promptObj.mcpServerIds?.length || 0} enabled
+                    </button>
+                    <div class="model-selector">
+                        <label>Model:</label>
+                        ${modelDropdown}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Append parts to create the full card
+        promptCard.appendChild(cardHeader);
+        promptCard.appendChild(cardContent);
+        container.appendChild(promptCard);
+        
+        // Add collapse/expand functionality
+        cardHeader.querySelector('.prompt-collapse-btn').addEventListener('click', function(e) {
+            e.stopPropagation();
+            togglePromptCollapse(promptCard);
+        });
+        
+        // Make the entire header clickable to toggle collapse
+        cardHeader.addEventListener('click', function(e) {
+            // Don't toggle if clicking on action buttons
+            if (!e.target.closest('.prompt-actions button:not(.prompt-collapse-btn)')) {
+                togglePromptCollapse(promptCard);
+            }
+        });
     });
     
-    // Add event listeners
+    // Add event listeners for content
     document.querySelectorAll('.prompt-text').forEach((input, index) => {
         input.addEventListener('input', () => {
             if (typeof editingConfig.prompts[index] === 'string') {
@@ -1522,10 +1591,21 @@ function renderPromptsList(prompts) {
             } else {
                 editingConfig.prompts[index].text = input.value;
             }
+            
+            // Update the preview text when content changes
+            const card = input.closest('.prompt-card');
+            const previewElement = card.querySelector('.prompt-preview');
+            let previewText = input.value.split('\n')[0] || '';
+            if (previewText.length > 40) {
+                previewText = previewText.substring(0, 40) + '...';
+            }
+            previewElement.textContent = previewText;
+            
             markAsUnsaved();
         });
     });
     
+    // Add event listeners for action buttons
     document.querySelectorAll('.select-mcp-servers').forEach((btn, index) => {
         btn.addEventListener('click', () => showMCPServerSelector(index));
     });
@@ -1545,16 +1625,76 @@ function renderPromptsList(prompts) {
         });
     });
     
-    document.querySelectorAll('.move-up').forEach((btn, index) => {
-        btn.addEventListener('click', () => movePrompt(index, 'up'));
+    document.querySelectorAll('.move-up-prompt').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const card = btn.closest('.prompt-card');
+            const index = parseInt(card.dataset.index);
+            movePrompt(index, 'up');
+        });
     });
     
-    document.querySelectorAll('.move-down').forEach((btn, index) => {
-        btn.addEventListener('click', () => movePrompt(index, 'down'));
+    document.querySelectorAll('.move-down-prompt').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const card = btn.closest('.prompt-card');
+            const index = parseInt(card.dataset.index);
+            movePrompt(index, 'down');
+        });
     });
     
-    document.querySelectorAll('.remove-prompt').forEach((btn, index) => {
-        btn.addEventListener('click', () => removePrompt(index));
+    document.querySelectorAll('.remove-prompt').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const card = btn.closest('.prompt-card');
+            const index = parseInt(card.dataset.index);
+            removePrompt(index);
+        });
+    });
+}
+
+// Toggle individual prompt collapse/expand
+function togglePromptCollapse(promptCard) {
+    const content = promptCard.querySelector('.prompt-content');
+    const btn = promptCard.querySelector('.prompt-collapse-btn');
+    const icon = btn.querySelector('.material-icons-outlined');
+    
+    if (content.style.display === 'none') {
+        // Expand
+        content.style.display = 'block';
+        btn.classList.add('expanded');
+        icon.textContent = 'expand_less';
+    } else {
+        // Collapse
+        content.style.display = 'none';
+        btn.classList.remove('expanded');
+        icon.textContent = 'expand_more';
+    }
+}
+
+// Expand all prompts function
+function expandAllPrompts() {
+    document.querySelectorAll('.prompt-card').forEach(card => {
+        const content = card.querySelector('.prompt-content');
+        const btn = card.querySelector('.prompt-collapse-btn');
+        const icon = btn.querySelector('.material-icons-outlined');
+        
+        content.style.display = 'block';
+        btn.classList.add('expanded');
+        icon.textContent = 'expand_less';
+    });
+}
+
+// Collapse all prompts function
+function collapseAllPrompts() {
+    document.querySelectorAll('.prompt-card').forEach(card => {
+        const content = card.querySelector('.prompt-content');
+        const btn = card.querySelector('.prompt-collapse-btn');
+        const icon = btn.querySelector('.material-icons-outlined');
+        
+        content.style.display = 'none';
+        btn.classList.remove('expanded');
+        icon.textContent = 'expand_more';
     });
 }
 

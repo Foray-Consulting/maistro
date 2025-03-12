@@ -5,241 +5,346 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maistro - Prompt Automation</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
-        <header>
-            <h1>Maistro</h1>
-            <p>Prompt Automation Tool</p>
-            <nav class="main-nav">
-                <button id="navConfigsBtn" class="nav-btn active">Configurations</button>
-                <button id="navMCPServersBtn" class="nav-btn">MCP Servers</button>
-                <button id="navModelsBtn" class="nav-btn">Models</button>
-            </nav>
-        </header>
-
-        <main>
-            <!-- Models Section -->
-            <div id="modelsSection" class="page-section hidden">
-                <section class="models-config">
-                    <h2>LLM Model Configuration</h2>
-                    
-                    <div class="form-group">
-                        <label for="openRouterApiKey">OpenRouter API Key</label>
-                        <div class="api-key-input">
-                            <input type="password" id="openRouterApiKey" placeholder="Enter your OpenRouter API key">
-                            <button id="saveApiKeyBtn" class="btn primary">Save API Key</button>
-                        </div>
-                        <p class="help-text">Your API key is stored locally and used to authenticate with OpenRouter.</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <h3>Default Model</h3>
-                        <div class="default-model-selector">
-                            <select id="defaultModel"></select>
-                            <button id="saveDefaultModelBtn" class="btn primary">Save Default</button>
-                        </div>
-                        <p class="help-text">This model will be used for all prompts unless overridden at the prompt level.</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <h3>Available Models</h3>
-                        <div id="availableModelsList" class="models-list"></div>
-                        <div class="model-add-form">
-                            <input type="text" id="newModelInput" placeholder="Model ID (e.g., anthropic/claude-3-opus)">
-                            <button id="addModelBtn" class="btn secondary">Add Model</button>
-                        </div>
-                    </div>
-                </section>
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">m</span>
+                    <span class="logo-text">maistro</span>
+                </div>
             </div>
+            <nav class="sidebar-nav">
+                <button id="navConfigsBtn" class="sidebar-nav-btn active">
+                    <span class="material-icons-outlined">description</span>
+                    <span>Configurations</span>
+                </button>
+                <button id="navMCPServersBtn" class="sidebar-nav-btn">
+                    <span class="material-icons-outlined">dns</span>
+                    <span>MCP Servers</span>
+                </button>
+                <button id="navModelsBtn" class="sidebar-nav-btn">
+                    <span class="material-icons-outlined">psychology</span>
+                    <span>Models</span>
+                </button>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <header class="content-header">
+                <h2 id="pageTitle">Configurations</h2>
+            </header>
+
+            <div class="content-container">
+                <!-- Models Section -->
+                <div id="modelsSection" class="page-section hidden">
+                    <section class="card models-config">
+                        <div class="card-header">
+                            <h3>LLM Model Configuration</h3>
+                        </div>
+                        <div class="card-content">
+                    
+                            <div class="form-group">
+                                <label for="openRouterApiKey">OpenRouter API Key</label>
+                                <div class="api-key-input">
+                                    <input type="password" id="openRouterApiKey" placeholder="Enter your OpenRouter API key">
+                                    <button id="saveApiKeyBtn" class="btn primary">Save API Key</button>
+                                </div>
+                                <p class="help-text">Your API key is stored locally and used to authenticate with OpenRouter.</p>
+                            </div>
+                    
+                            <div class="form-group">
+                                <h4>Default Model</h4>
+                                <div class="default-model-selector">
+                                    <select id="defaultModel"></select>
+                                    <button id="saveDefaultModelBtn" class="btn primary">Save Default</button>
+                                </div>
+                                <p class="help-text">This model will be used for all prompts unless overridden at the prompt level.</p>
+                            </div>
+                    
+                            <div class="form-group">
+                                <h4>Available Models</h4>
+                                <div id="availableModelsList" class="models-list"></div>
+                                <div class="model-add-form">
+                                    <input type="text" id="newModelInput" placeholder="Model ID (e.g., anthropic/claude-3-opus)">
+                                    <button id="addModelBtn" class="btn secondary">Add Model</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
             
-            <!-- Configurations Section -->
-            <div id="configsSection" class="page-section active">
-                <section class="configs-list">
-                    <h2>Configurations</h2>
-                    <div class="configs-container" id="configsList"></div>
-                    <button id="createConfigBtn" class="btn primary">+ New Configuration</button>
-                </section>
-
-                <section class="active-config" id="activeConfigSection">
-                    <div class="config-container">
-                        <div id="configForm">
-                            <div class="form-header">
-                                <div class="title-area">
-                                    <h2 id="configFormTitle">New Configuration</h2>
-                                    <span id="configStatus" class="status-indicator unsaved">Unsaved</span>
+                <!-- Configurations Section -->
+                <div id="configsSection" class="page-section active">
+                    <div class="two-panel-layout">
+                        <section class="sidebar-panel">
+                            <div class="card configs-list">
+                                <div class="card-header">
+                                    <h3>Configurations</h3>
+                                    <button id="createConfigBtn" class="btn primary icon-btn">
+                                        <span class="material-icons-outlined">add</span>
+                                    </button>
                                 </div>
-                                <div class="form-actions">
-                                    <button id="saveConfigBtn" class="btn primary">Save</button>
-                                    <button id="cancelConfigBtn" class="btn">Cancel</button>
+                                <div class="card-content">
+                                    <div class="configs-container" id="configsList"></div>
                                 </div>
                             </div>
+                        </section>
 
-                            <div class="form-group">
-                                <label for="configName">Name</label>
-                                <input type="text" id="configName" placeholder="Configuration name">
-                            </div>
-
-                            <div class="form-group">
-                                <h3>Prompts</h3>
-                                <div id="promptsList"></div>
-                                <button id="addPromptBtn" class="btn secondary">+ Add Prompt</button>
-                            </div>
-
-                            <div class="form-group">
-                                <h3>Trigger (Optional)</h3>
-                                <div class="trigger-options">
-                                    <p class="help-text">Configure this to run another configuration when this one completes.</p>
-                                    <div id="triggerSelector"></div>
-                                    <button id="configureTriggerBtn" class="btn secondary">Configure Trigger</button>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <h3>Schedule (Optional)</h3>
-                                <div class="schedule-options">
-                                    <div class="form-check">
-                                        <input type="checkbox" id="scheduleEnabled">
-                                        <label for="scheduleEnabled">Enable scheduling</label>
+                        <section class="main-panel" id="activeConfigSection">
+                            <div class="card" id="configForm">
+                                <div class="card-header">
+                                    <div class="title-area">
+                                        <h3 id="configFormTitle">New Configuration</h3>
+                                        <span id="configStatus" class="status-indicator unsaved">Unsaved</span>
                                     </div>
-                                    
-                                    <div id="scheduleConfig" class="hidden">
-                                        <div class="schedule-row">
-                                            <label for="scheduleFrequency">Frequency</label>
-                                            <select id="scheduleFrequency">
-                                                <option value="daily">Daily</option>
-                                                <option value="weekly">Weekly</option>
-                                                <option value="monthly">Monthly</option>
-                                            </select>
+                                    <div class="form-actions">
+                                        <button id="saveConfigBtn" class="btn primary">Save</button>
+                                        <button id="cancelConfigBtn" class="btn">Cancel</button>
+                                    </div>
+                                </div>
+                                <div class="card-content">
+                                    <!-- Basic Information Section -->
+                                    <div class="config-section">
+                                        <div class="section-header">
+                                            <div class="section-title">
+                                                <span class="material-icons-outlined">info</span>
+                                                <h4>Basic Information</h4>
+                                            </div>
                                         </div>
-                                        
-                                        <div class="schedule-row">
-                                            <label for="scheduleTime">Time</label>
-                                            <input type="time" id="scheduleTime" value="09:00">
+                                        <div class="section-content">
+                                            <div class="form-group">
+                                                <label for="configName">Name</label>
+                                                <input type="text" id="configName" placeholder="Configuration name">
+                                            </div>
                                         </div>
-                                        
-                                        <div id="scheduleDays" class="schedule-row hidden">
-                                            <label>Days</label>
-                                            <div class="days-selector">
-                                                <div class="day-option">
-                                                    <input type="checkbox" id="day-mon" class="day-checkbox">
-                                                    <label for="day-mon">Mon</label>
-                                                </div>
-                                                <div class="day-option">
-                                                    <input type="checkbox" id="day-tue" class="day-checkbox">
-                                                    <label for="day-tue">Tue</label>
-                                                </div>
-                                                <div class="day-option">
-                                                    <input type="checkbox" id="day-wed" class="day-checkbox">
-                                                    <label for="day-wed">Wed</label>
-                                                </div>
-                                                <div class="day-option">
-                                                    <input type="checkbox" id="day-thu" class="day-checkbox">
-                                                    <label for="day-thu">Thu</label>
-                                                </div>
-                                                <div class="day-option">
-                                                    <input type="checkbox" id="day-fri" class="day-checkbox">
-                                                    <label for="day-fri">Fri</label>
-                                                </div>
-                                                <div class="day-option">
-                                                    <input type="checkbox" id="day-sat" class="day-checkbox">
-                                                    <label for="day-sat">Sat</label>
-                                                </div>
-                                                <div class="day-option">
-                                                    <input type="checkbox" id="day-sun" class="day-checkbox">
-                                                    <label for="day-sun">Sun</label>
+                                    </div>
+
+                                    <!-- Prompts Section -->
+                                    <div class="config-section">
+                                        <div class="section-header">
+                                            <div class="section-title">
+                                                <span class="material-icons-outlined">chat</span>
+                                                <h4>Prompts</h4>
+                                            </div>
+                                            <div class="section-actions">
+                                                <button id="expandAllPromptsBtn" class="btn small">
+                                                    <span class="material-icons-outlined">unfold_more</span>
+                                                </button>
+                                                <button id="collapseAllPromptsBtn" class="btn small">
+                                                    <span class="material-icons-outlined">unfold_less</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="section-content">
+                                            <div id="promptsList" class="prompts-container"></div>
+                                            <button id="addPromptBtn" class="btn secondary">
+                                                <span class="material-icons-outlined">add</span> Add Prompt
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Trigger Section -->
+                                    <div class="config-section">
+                                        <div class="section-header">
+                                            <div class="section-title">
+                                                <span class="material-icons-outlined">trigger</span>
+                                                <h4>Trigger</h4>
+                                                <span class="section-subtitle">(Optional)</span>
+                                            </div>
+                                            <div class="help-tooltip" title="Configure this to run another configuration when this one completes">
+                                                <span class="material-icons-outlined">help_outline</span>
+                                            </div>
+                                        </div>
+                                        <div class="section-content">
+                                            <div class="trigger-options">
+                                                <div id="triggerSelector"></div>
+                                                <button id="configureTriggerBtn" class="btn secondary">
+                                                    <span class="material-icons-outlined">settings</span> Configure Trigger
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Schedule Section -->
+                                    <div class="config-section">
+                                        <div class="section-header">
+                                            <div class="section-title">
+                                                <span class="material-icons-outlined">schedule</span>
+                                                <h4>Schedule</h4>
+                                                <span class="section-subtitle">(Optional)</span>
+                                            </div>
+                                            <div class="toggle-switch">
+                                                <input type="checkbox" id="scheduleEnabled">
+                                                <label for="scheduleEnabled"></label>
+                                            </div>
+                                        </div>
+                                        <div class="section-content">
+                                            <div id="scheduleConfig" class="hidden">
+                                                <div class="schedule-grid">
+                                                    <div class="schedule-column">
+                                                        <div class="form-group">
+                                                            <label for="scheduleFrequency">Frequency</label>
+                                                            <select id="scheduleFrequency">
+                                                                <option value="daily">Daily</option>
+                                                                <option value="weekly">Weekly</option>
+                                                                <option value="monthly">Monthly</option>
+                                                            </select>
+                                                        </div>
+                                                        
+                                                        <div class="form-group">
+                                                            <label for="scheduleTime">Time</label>
+                                                            <input type="time" id="scheduleTime" value="09:00">
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="schedule-column">
+                                                        <div id="scheduleDays" class="days-container hidden">
+                                                            <label>Days of Week</label>
+                                                            <div class="days-selector">
+                                                                <div class="day-option">
+                                                                    <input type="checkbox" id="day-mon" class="day-checkbox">
+                                                                    <label for="day-mon">M</label>
+                                                                </div>
+                                                                <div class="day-option">
+                                                                    <input type="checkbox" id="day-tue" class="day-checkbox">
+                                                                    <label for="day-tue">T</label>
+                                                                </div>
+                                                                <div class="day-option">
+                                                                    <input type="checkbox" id="day-wed" class="day-checkbox">
+                                                                    <label for="day-wed">W</label>
+                                                                </div>
+                                                                <div class="day-option">
+                                                                    <input type="checkbox" id="day-thu" class="day-checkbox">
+                                                                    <label for="day-thu">T</label>
+                                                                </div>
+                                                                <div class="day-option">
+                                                                    <input type="checkbox" id="day-fri" class="day-checkbox">
+                                                                    <label for="day-fri">F</label>
+                                                                </div>
+                                                                <div class="day-option">
+                                                                    <input type="checkbox" id="day-sat" class="day-checkbox">
+                                                                    <label for="day-sat">S</label>
+                                                                </div>
+                                                                <div class="day-option">
+                                                                    <input type="checkbox" id="day-sun" class="day-checkbox">
+                                                                    <label for="day-sun">S</label>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div id="scheduleDate" class="hidden">
+                                                            <label for="scheduleDay">Day of month</label>
+                                                            <select id="scheduleDay"></select>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                        
-                                        <div id="scheduleDate" class="schedule-row hidden">
-                                            <label for="scheduleDay">Day of month</label>
-                                            <select id="scheduleDay"></select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card" id="executionPanel">
+                                <div class="card-header">
+                                    <h3 id="executionTitle">Run Configuration</h3>
+                                    <button id="runConfigBtn" class="btn primary">
+                                        <span class="material-icons-outlined">play_arrow</span> Run Now
+                                    </button>
+                                </div>
+                                <div class="card-content">
+                                    <div class="terminal">
+                                        <div class="terminal-header">
+                                            <div class="terminal-header-left">
+                                                <span>Output</span>
+                                                <span id="connectionStatus" class="connection-status offline">Disconnected</span>
+                                            </div>
+                                            <button id="clearOutputBtn" class="btn small">Clear</button>
+                                        </div>
+                                        <div id="outputDisplay" class="terminal-content"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- MCP Servers Section -->
+                <div id="mcpServersSection" class="page-section hidden">
+                    <div class="two-panel-layout">
+                        <section class="sidebar-panel">
+                            <div class="card mcp-servers-list">
+                                <div class="card-header">
+                                    <h3>MCP Servers</h3>
+                                    <button id="createMCPServerBtn" class="btn primary icon-btn">
+                                        <span class="material-icons-outlined">add</span>
+                                    </button>
+                                </div>
+                                <div class="card-content">
+                                    <div class="mcp-servers-container" id="mcpServersList"></div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="main-panel">
+                            <div class="card" id="mcpServerForm">
+                                <div class="card-header">
+                                    <div class="title-area">
+                                        <h3 id="mcpServerFormTitle">New MCP Server</h3>
+                                        <span id="mcpServerStatus" class="status-indicator unsaved">Unsaved</span>
+                                    </div>
+                                    <div class="form-actions">
+                                        <button id="saveMCPServerBtn" class="btn primary">Save</button>
+                                        <button id="cancelMCPServerBtn" class="btn">Cancel</button>
+                                    </div>
+                                </div>
+                                <div class="card-content">
+                                    <div class="form-group">
+                                        <label for="mcpServerName">Name</label>
+                                        <input type="text" id="mcpServerName" placeholder="MCP Server name">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="mcpServerCommand">Command</label>
+                                        <input type="text" id="mcpServerCommand" placeholder="e.g., node">
+                                        <p class="help-text">The command to execute (e.g., 'node')</p>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="mcpServerArgs">Arguments</label>
+                                        <input type="text" id="mcpServerArgs" placeholder="e.g., /path/to/script.js">
+                                        <p class="help-text">Command line arguments (e.g., path to a script)</p>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <h4>Environment Variables</h4>
+                                        <div id="envVarsList"></div>
+                                        <button id="addEnvVarBtn" class="btn secondary">
+                                            <span class="material-icons-outlined">add</span> Add Environment Variable
+                                        </button>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="mcpServerDescription">Description (Optional)</label>
+                                        <textarea id="mcpServerDescription" rows="3" placeholder="Describe what this MCP server does"></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <h4>Default Settings</h4>
+                                        <div class="form-check">
+                                            <input type="checkbox" id="mcpServerDefaultEnabled">
+                                            <label for="mcpServerDefaultEnabled">Enable by default for new prompts</label>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <div id="executionPanel">
-                            <div class="execution-header">
-                                <h2 id="executionTitle">Run Configuration</h2>
-                                <button id="runConfigBtn" class="btn primary">Run Now</button>
-                            </div>
-                            
-                            <div class="terminal">
-                                <div class="terminal-header">
-                                    <div class="terminal-header-left">
-                                        <span>Output</span>
-                                        <span id="connectionStatus" class="connection-status offline">Disconnected</span>
-                                    </div>
-                                    <button id="clearOutputBtn" class="btn small">Clear</button>
-                                </div>
-                                <div id="outputDisplay" class="terminal-content"></div>
-                            </div>
-                        </div>
+                        </section>
                     </div>
-                </section>
-            </div>
-
-            <!-- MCP Servers Section -->
-            <div id="mcpServersSection" class="page-section hidden">
-                <section class="mcp-servers-list">
-                    <h2>MCP Servers</h2>
-                    <div class="mcp-servers-container" id="mcpServersList"></div>
-                    <button id="createMCPServerBtn" class="btn primary">+ New MCP Server</button>
-                </section>
-
-                <section class="active-mcp-server">
-                    <div id="mcpServerForm" class="hidden">
-                        <div class="form-header">
-                            <div class="title-area">
-                                <h2 id="mcpServerFormTitle">New MCP Server</h2>
-                                <span id="mcpServerStatus" class="status-indicator unsaved">Unsaved</span>
-                            </div>
-                            <div class="form-actions">
-                                <button id="saveMCPServerBtn" class="btn primary">Save</button>
-                                <button id="cancelMCPServerBtn" class="btn">Cancel</button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="mcpServerName">Name</label>
-                            <input type="text" id="mcpServerName" placeholder="MCP Server name">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="mcpServerCommand">Command</label>
-                            <input type="text" id="mcpServerCommand" placeholder="e.g., node">
-                            <p class="help-text">The command to execute (e.g., 'node')</p>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="mcpServerArgs">Arguments</label>
-                            <input type="text" id="mcpServerArgs" placeholder="e.g., /path/to/script.js">
-                            <p class="help-text">Command line arguments (e.g., path to a script)</p>
-                        </div>
-
-                        <div class="form-group">
-                            <h3>Environment Variables</h3>
-                            <div id="envVarsList"></div>
-                            <button id="addEnvVarBtn" class="btn secondary">+ Add Environment Variable</button>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="mcpServerDescription">Description (Optional)</label>
-                            <textarea id="mcpServerDescription" rows="3" placeholder="Describe what this MCP server does"></textarea>
-                        </div>
-
-                        <div class="form-group">
-                            <h3>Default Settings</h3>
-                            <div class="form-check">
-                                <input type="checkbox" id="mcpServerDefaultEnabled">
-                                <label for="mcpServerDefaultEnabled">Enable by default for new prompts</label>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                </div>
             </div>
         </main>
     </div>
