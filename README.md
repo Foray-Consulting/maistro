@@ -55,7 +55,10 @@ cd maistro
 
 2. Build and run using Docker Compose:
 ```bash
-# Build and start the container
+# Build the Docker image for your current platform
+./scripts/build-local.sh
+
+# Start the container (with interactive configuration)
 ./scripts/run-local.sh
 
 # Or run in detached mode
@@ -64,12 +67,57 @@ cd maistro
 
 3. Open your browser to http://localhost:3000
 
+#### Docker Volume Configuration
+
+When you run Maistro for the first time using `run-local.sh`, you'll be guided through a configuration process:
+
+```mermaid
+flowchart TD
+  A[Start run-local.sh] --> B{Config exists?}
+  B -->|Yes| C[Read config]
+  B -->|No| D[Interactive setup]
+  D --> E[Create config file]
+  E --> C
+  C --> F{Volume type?}
+  F -->|Docker volume| G[Use docker volume]
+  F -->|Host directory| H[Mount host directory]
+  G --> I[Start container]
+  H --> I
+```
+
+You can choose between two options for data persistence:
+
+1. **Docker-managed volume** (default):
+   - Easier to manage
+   - Data is managed by Docker
+   - Ideal for most users
+
+2. **Custom host directory**:
+   - Mount a specific directory from your host system
+   - Direct access to configuration files
+   - Useful for advanced users or for sharing configurations
+
+Your choice is saved in a `.maistro-docker-config` file for future runs.
+
+#### Additional Run Options
+
+```bash
+# Skip configuration prompts (use existing or default)
+./scripts/run-local.sh --skip-config
+
+# Reset configuration and prompt again
+./scripts/run-local.sh --reset-config
+
+# Show help and all available options
+./scripts/run-local.sh --help
+```
+
 #### Docker Build Options
 
 The Docker build supports both ARM64 and AMD64 architectures:
 
 ```bash
-# Build the Docker image
+# Build the Docker image for your current platform
 ./scripts/build-local.sh
 
 # Build with verbose output
@@ -77,7 +125,12 @@ The Docker build supports both ARM64 and AMD64 architectures:
 
 # Build for a specific platform
 ./scripts/build-local.sh --platform="linux/amd64"
+
+# Build for multiple architectures (requires Docker registry setup)
+./scripts/build-local.sh --multi-arch
 ```
+
+By default, the build script will detect your current platform and build only for that architecture. Use the `--multi-arch` flag to build for both ARM64 and AMD64 architectures simultaneously.
 
 ## Usage
 
@@ -176,6 +229,46 @@ Maistro uses:
 - File-based storage for configurations, prompts, and MCP server definitions
 - Integration with Goose CLI's extension system for MCP servers
 - System crontab for scheduling
+
+### Data Persistence
+
+Maistro stores all its data in the `/app/data` directory inside the container, including:
+
+```
+/app/data/
+├── configs.json         # All saved configurations
+├── mcp-servers.json     # MCP server definitions
+├── models.json          # Model settings and API keys
+└── prompts/             # Individual prompt files
+    ├── config1_prompt_0.md
+    ├── config1_prompt_1.md
+    └── ...
+```
+
+When running with Docker, this data is persisted in one of two ways:
+
+```mermaid
+flowchart TD
+    A[Maistro Container] -->|/app/data| B{Volume Type}
+    B -->|Docker Volume| C[Docker-managed Volume]
+    B -->|Host Directory| D[Custom Host Directory]
+    C -->|Managed by Docker| E[maistro-data]
+    D -->|Direct Access| F[User-specified Path]
+```
+
+1. **Docker-managed Volume** (default):
+   - Data is stored in a Docker volume named `maistro-data`
+   - Managed automatically by Docker
+   - Persists across container restarts and rebuilds
+   - Can be backed up using Docker volume commands
+
+2. **Custom Host Directory**:
+   - Data is stored in a directory on your host system
+   - Provides direct access to configuration files
+   - Easier to back up or version control
+   - Can be shared between different installations
+
+The volume configuration is managed by the `run-local.sh` script, which creates a Docker Compose override file based on your preferences.
 
 ## License
 

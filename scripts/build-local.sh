@@ -9,11 +9,14 @@ exec 1>&1
 
 # Parse command line arguments
 VERBOSE=false
-PLATFORMS="linux/amd64,linux/arm64"
+MULTI_ARCH=false
+# Default to current platform if not multi-arch
+PLATFORMS="linux/$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')"
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --verbose) VERBOSE=true ;;
-        --platform=*) PLATFORMS="${1#*=}" ;;
+        --multi-arch) MULTI_ARCH=true; PLATFORMS="linux/amd64,linux/arm64" ;;
+        --platform=*) PLATFORMS="${1#*=}"; MULTI_ARCH=false ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
@@ -80,18 +83,34 @@ run_step() {
 # Install dependencies
 run_step "Installing dependencies" "npm-install" "npm install" || exit 1
 
-# Build Docker image with multi-architecture support
+# Build Docker image
 echo "→ Building Docker images for platforms: $PLATFORMS"
+DOCKER_LOG="$TEMP_DIR/docker-build.log"
+
+# Determine build command based on multi-arch flag
+if [ "$MULTI_ARCH" = true ]; then
+    echo "Building multi-architecture images (requires Docker registry)"
+    BUILD_CMD="docker buildx build --platform $PLATFORMS -t maistro:local --output type=image,push=false ."
+else
+    # For single platform, use standard docker build which is more reliable
+    echo "Building for platform: $PLATFORMS"
+    if [[ "$PLATFORMS" == *"arm64"* ]]; then
+        BUILD_CMD="docker build --platform linux/arm64 -t maistro:local ."
+    else
+        BUILD_CMD="docker build --platform linux/amd64 -t maistro:local ."
+    fi
+fi
+
+# Execute the build command
 if [ "$VERBOSE" = true ]; then
-    if docker buildx build --platform $PLATFORMS -t maistro:local --load .; then
+    if eval "$BUILD_CMD"; then
         echo -e "${GREEN}${CHECK_MARK} Docker build successful${NC}"
     else
         echo -e "${RED}${X_MARK} Docker build failed${NC}"
         exit 1
     fi
 else
-    DOCKER_LOG="$TEMP_DIR/docker-build.log"
-    if docker buildx build --platform $PLATFORMS -t maistro:local --load . > "$DOCKER_LOG" 2>&1; then
+    if eval "$BUILD_CMD > '$DOCKER_LOG' 2>&1"; then
         echo -e "${GREEN}${CHECK_MARK} Docker build successful${NC} (log: $DOCKER_LOG)"
         check_log_size "$DOCKER_LOG"
     else
