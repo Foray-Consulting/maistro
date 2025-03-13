@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cancelConfigBtn').addEventListener('click', cancelConfigEdit);
     document.getElementById('addPromptBtn').addEventListener('click', addPrompt);
     document.getElementById('configureTriggerBtn').addEventListener('click', showTriggerConfigDialog);
+    document.getElementById('triggerEnabled').addEventListener('change', toggleTriggerOptions);
     document.getElementById('scheduleEnabled').addEventListener('change', toggleScheduleOptions);
     document.getElementById('scheduleFrequency').addEventListener('change', updateScheduleFields);
     document.getElementById('runConfigBtn').addEventListener('click', runConfig);
@@ -967,12 +968,28 @@ function selectConfig(configId) {
         console.log("Rendering prompts list");
         renderPromptsList(editingConfig.prompts);
         
+        // Always ensure both optional sections start closed with proper state
+        console.log("Setting optional sections to start closed by default");
+        
+        // Set trigger state
+        document.getElementById('triggerEnabled').checked = config.trigger?.enabled || false;
+        document.getElementById('triggerConfig').classList.add('hidden');
+        
+        // Set schedule state
+        document.getElementById('scheduleEnabled').checked = config.schedule?.enabled || false;
+        document.getElementById('scheduleConfig').classList.add('hidden');
+        
+        // Update the UI based on the saved state if enabled
+        if (config.trigger?.enabled) {
+            document.getElementById('triggerConfig').classList.remove('hidden');
+        }
+        
+        if (config.schedule?.enabled) {
+            document.getElementById('scheduleConfig').classList.remove('hidden');
+        }
+        
         console.log("Rendering trigger info");
         renderTriggerInfo(); // Display trigger information if it exists
-        
-        console.log("Setting schedule options");
-        document.getElementById('scheduleEnabled').checked = config.schedule?.enabled || false;
-        toggleScheduleOptions();
     } catch (error) {
         console.error("Error in selectConfig:", error);
     }
@@ -1025,11 +1042,29 @@ function markAsUnsaved() {
 }
 
 // Trigger functionality
+function toggleTriggerOptions() {
+    const enabled = document.getElementById('triggerEnabled').checked;
+    document.getElementById('triggerConfig').classList.toggle('hidden', !enabled);
+    
+    if (editingConfig) {
+        if (!editingConfig.trigger) {
+            editingConfig.trigger = {};
+        }
+        editingConfig.trigger.enabled = enabled;
+        markAsUnsaved();
+    }
+}
+
 function renderTriggerInfo() {
     const container = document.getElementById('triggerSelector');
     container.innerHTML = '';
     
-    if (!editingConfig || !editingConfig.trigger) {
+    // Set the trigger toggle state based on configuration
+    const triggerEnabled = editingConfig?.trigger?.enabled || false;
+    document.getElementById('triggerEnabled').checked = triggerEnabled;
+    document.getElementById('triggerConfig').classList.toggle('hidden', !triggerEnabled);
+    
+    if (!editingConfig || !editingConfig.trigger || !editingConfig.trigger.configId) {
         container.innerHTML = '<p>No trigger configured</p>';
         return;
     }
@@ -1307,6 +1342,9 @@ function createNewConfig() {
         name: '',
         path: currentFolderPath, // Set current folder path
         prompts: [],
+        trigger: {
+            enabled: false
+        },
         schedule: {
             enabled: false,
             frequency: 'daily',
@@ -1496,8 +1534,8 @@ function renderPromptsList(prompts) {
             editingConfig.prompts[index] = promptObj;
         }
         
-        // Default to collapsed state, except the first prompt
-        const isExpanded = index === 0;
+        // Always start with prompts collapsed
+        const isExpanded = false;
         
         // Get preview text - first line or truncated content
         let previewText = promptObj.text.split('\n')[0] || '';

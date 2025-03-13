@@ -261,9 +261,13 @@ body {
 }
 
 .section-title {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: var(--space-xs);
+    justify-content: flex-start;
+    text-align: left;
+    flex: 1;
+    flex-wrap: nowrap;
 }
 
 .section-title h4 {
@@ -271,11 +275,14 @@ body {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-color);
+    white-space: nowrap;
 }
 
 .section-title .material-icons-outlined {
     color: var(--accent-color);
     font-size: 1.1rem;
+    flex-shrink: 0;
+    min-width: 1.1rem;
 }
 
 .section-subtitle {
@@ -283,6 +290,9 @@ body {
     color: var(--text-light);
     margin-left: var(--space-xs);
     font-weight: normal;
+    white-space: nowrap;
+    display: inline-block;
+    flex-shrink: 0;
 }
 
 .section-actions {
@@ -795,14 +805,16 @@ textarea {
     transform: translateX(24px);
 }
 
-/* Schedule Options */
-.schedule-grid {
+/* Schedule and Trigger Options */
+.schedule-grid,
+.trigger-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-lg);
 }
 
-.schedule-column {
+.schedule-column,
+.trigger-column {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
