@@ -29,7 +29,7 @@ Each configuration allows you to define:
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/maistro.git
+git clone https://github.com/forayconsulting/maistro.git
 cd maistro
 ```
 
