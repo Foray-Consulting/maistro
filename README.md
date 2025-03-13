@@ -21,8 +21,11 @@ Each configuration allows you to define:
 - Node.js and npm
 - [Goose CLI tool](https://github.com/xyzabc/goose) (confirmed to work with v1.0.7+)
 - Access to system crontab (for scheduling)
+- Docker and Docker Compose (for containerized deployment)
 
 ## Installation
+
+### Standard Installation
 
 1. Clone this repository:
 ```bash
@@ -41,6 +44,40 @@ npm start
 ```
 
 4. Open your browser to http://localhost:3000
+
+### Docker Installation
+
+1. Clone this repository:
+```bash
+git clone https://github.com/yourusername/maistro.git
+cd maistro
+```
+
+2. Build and run using Docker Compose:
+```bash
+# Build and start the container
+./scripts/run-local.sh
+
+# Or run in detached mode
+./scripts/run-local.sh --detached
+```
+
+3. Open your browser to http://localhost:3000
+
+#### Docker Build Options
+
+The Docker build supports both ARM64 and AMD64 architectures:
+
+```bash
+# Build the Docker image
+./scripts/build-local.sh
+
+# Build with verbose output
+./scripts/build-local.sh --verbose
+
+# Build for a specific platform
+./scripts/build-local.sh --platform="linux/amd64"
+```
 
 ## Usage
 
