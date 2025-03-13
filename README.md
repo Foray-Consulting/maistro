@@ -221,6 +221,32 @@ This implementation allows for sophisticated workflows where different prompts c
 
 When the prompt runs, Maistro will automatically include the selected MCP servers as `--with-extension` parameters to the Goose CLI, giving your prompts access to the tools and resources provided by those servers.
 
+## REST API
+
+Maistro provides a comprehensive REST API that allows you to programmatically interact with the application. The API endpoints include:
+
+- **Configurations**: Create, read, update, and delete configurations
+- **Folders**: Manage folder structure for organizing configurations
+- **Execution**: Run configurations programmatically
+- **MCP Servers**: Manage MCP server definitions
+- **Models**: Configure LLM models and API keys
+
+### API Documentation
+
+Maistro includes interactive API documentation powered by Swagger UI. You can access the documentation at:
+
+```
+http://localhost:3000/api-docs
+```
+
+The documentation provides:
+- Complete list of all available endpoints
+- Request and response schemas
+- "Try it out" functionality to test API calls directly from the browser
+- Code examples in various languages
+
+This makes it easy to integrate Maistro with other tools and systems or build custom interfaces.
+
 ## Technical Details
 
 Maistro uses:
@@ -229,6 +255,7 @@ Maistro uses:
 - File-based storage for configurations, prompts, and MCP server definitions
 - Integration with Goose CLI's extension system for MCP servers
 - System crontab for scheduling
+- Swagger UI for API documentation
 
 ### Data Persistence
 
