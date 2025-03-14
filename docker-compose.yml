@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  maistro:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: maistro:local
+    container_name: maistro
+    ports:
+      - "3000:3000"
+    volumes:
+      - maistro-data:/app/data
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      # Add any other environment variables here
+
+volumes:
+  maistro-data:
+    name: maistro-data

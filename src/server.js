@@ -5,6 +5,7 @@ const WebSocket = require('ws');
 const morgan = require('morgan');
 const cors = require('cors');
 const fs = require('fs-extra');
+const swaggerUi = require('swagger-ui-express');
 
 // Import managers
 const ConfigManager = require('./config-manager');
@@ -12,6 +13,9 @@ const ExecutionManager = require('./execution-manager');
 const CrontabManager = require('./crontab-manager');
 const MCPServerManager = require('./mcp-server-manager');
 const ModelManager = require('./model-manager');
+
+// Import OpenAPI definition
+const apiDoc = require('./api/openapi');
 
 // Enable debugging for execution manager
 process.env.DEBUG = 'true';
@@ -39,20 +43,123 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Connections map for WebSockets
+const connections = new Map();
+app.locals.connections = connections;
+
+// Set up Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiDoc, {
+  explorer: true,
+  swaggerOptions: {
+    docExpansion: 'list',
+    filter: true,
+    showRequestDuration: true,
+    tryItOutEnabled: true
+  }
+}));
+
 // API health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Connections map for WebSockets
-const connections = new Map();
-
 // API Routes
 app.get('/api/configs', (req, res) => {
-  // Check if a folder path is specified in the query parameters
-  const folderPath = req.query.folderPath !== undefined ? req.query.folderPath : undefined;
-  const configs = configManager.getAllConfigs(folderPath);
-  res.json(configs);
+  try {
+    // Check if a folder path is specified in the query parameters
+    const folderPath = req.query.folderPath !== undefined ? req.query.folderPath : undefined;
+    const configs = configManager.getAllConfigs(folderPath);
+    res.json(configs);
+  } catch (error) {
+    console.error('Error getting configurations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/configs', async (req, res) => {
+  try {
+    const config = req.body;
+    await configManager.saveConfig(config);
+    
+    // Update crontab if scheduling is enabled
+    if (config.schedule && config.schedule.enabled) {
+      await crontabManager.updateCronJob(config);
+    } else {
+      await crontabManager.removeCronJob(config.id);
+    }
+    
+    res.json({ success: true, config });
+  } catch (error) {
+    console.error('Error saving config:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/configs/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    await configManager.deleteConfig(id);
+    await crontabManager.removeCronJob(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting config:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/configs/:id/move', async (req, res) => {
+  try {
+    const configId = req.params.id;
+    const { folderPath } = req.body;
+    
+    if (folderPath === undefined) {
+      return res.status(400).json({ error: 'No folder path provided' });
+    }
+    
+    const config = await configManager.moveConfigToFolder(configId, folderPath);
+    
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
+    
+    res.json({ success: true, config });
+  } catch (error) {
+    console.error('Error moving configuration:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/run/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const config = configManager.getConfigById(id);
+    
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
+    
+    // Get the WebSocket connection
+    const ws = connections.get(id);
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn(`No active WebSocket connection found for config ID: ${id}. Waiting for connection...`);
+      
+      // Return success but let client know of potential issue
+      return res.json({ 
+        success: true, 
+        message: 'Execution queued, waiting for WebSocket connection',
+        needsReconnect: true 
+      });
+    }
+    
+    // Start execution in background
+    executionManager.executeConfig(config, ws);
+    
+    res.json({ success: true, message: 'Execution started' });
+  } catch (error) {
+    console.error('Error starting execution:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Folder API routes
@@ -105,92 +212,6 @@ app.delete('/api/folders/:path', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting folder:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put('/api/configs/:id/move', async (req, res) => {
-  try {
-    const configId = req.params.id;
-    const { folderPath } = req.body;
-    
-    if (folderPath === undefined) {
-      return res.status(400).json({ error: 'No folder path provided' });
-    }
-    
-    const config = await configManager.moveConfigToFolder(configId, folderPath);
-    
-    if (!config) {
-      return res.status(404).json({ error: 'Configuration not found' });
-    }
-    
-    res.json({ success: true, config });
-  } catch (error) {
-    console.error('Error moving configuration:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/configs', async (req, res) => {
-  try {
-    const config = req.body;
-    await configManager.saveConfig(config);
-    
-    // Update crontab if scheduling is enabled
-    if (config.schedule && config.schedule.enabled) {
-      await crontabManager.updateCronJob(config);
-    } else {
-      await crontabManager.removeCronJob(config.id);
-    }
-    
-    res.json({ success: true, config });
-  } catch (error) {
-    console.error('Error saving config:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.delete('/api/configs/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    await configManager.deleteConfig(id);
-    await crontabManager.removeCronJob(id);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting config:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/run/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const config = configManager.getConfigById(id);
-    
-    if (!config) {
-      return res.status(404).json({ error: 'Configuration not found' });
-    }
-    
-    // Get the WebSocket connection
-    const ws = connections.get(id);
-    
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn(`No active WebSocket connection found for config ID: ${id}. Waiting for connection...`);
-      
-      // Return success but let client know of potential issue
-      return res.json({ 
-        success: true, 
-        message: 'Execution queued, waiting for WebSocket connection',
-        needsReconnect: true 
-      });
-    }
-    
-    // Start execution in background
-    executionManager.executeConfig(config, ws);
-    
-    res.json({ success: true, message: 'Execution started' });
-  } catch (error) {
-    console.error('Error starting execution:', error);
     res.status(500).json({ error: error.message });
   }
 });
