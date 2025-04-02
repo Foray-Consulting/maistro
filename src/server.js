@@ -134,7 +134,8 @@ app.put('/api/configs/:id/move', async (req, res) => {
 app.post('/api/configs', async (req, res) => {
   try {
     const config = req.body;
-    await configManager.saveConfig(config);
+    // Validate config before saving
+    const savedConfig = await configManager.saveConfig(config);
     
     // Update crontab if scheduling is enabled
     if (config.schedule && config.schedule.enabled) {
@@ -143,10 +144,22 @@ app.post('/api/configs', async (req, res) => {
       await crontabManager.removeCronJob(config.id);
     }
     
-    res.json({ success: true, config });
+    res.json({ success: true, config: savedConfig });
   } catch (error) {
     console.error('Error saving config:', error);
-    res.status(500).json({ error: error.message });
+    // Use appropriate status code based on the error
+    const statusCode = 
+      error.message.includes('already in use') ? 409 :        // Conflict
+      error.message.includes('required') ? 400 :              // Bad Request
+      error.message.includes('invalid') ? 400 :               // Bad Request
+      error.message.includes('missing') ? 400 :               // Bad Request
+      500;                                                    // Internal Server Error
+    
+    res.status(statusCode).json({ 
+      error: error.message,
+      errorCode: statusCode,
+      success: false
+    });
   }
 });
 

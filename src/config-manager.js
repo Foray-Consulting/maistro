@@ -153,55 +153,60 @@ class ConfigManager {
   /**
    * Validate a configuration object
    * @param {Object} config - The configuration object to validate
-   * @returns {boolean} True if valid, false otherwise
+   * @returns {Object} Result with isValid boolean and error message if invalid
    */
   validateConfig(config) {
     if (!config || typeof config !== 'object') {
       console.error('Invalid configuration: Not an object');
-      return false;
+      return { isValid: false, error: 'Invalid configuration: Not an object' };
     }
 
     if (!config.id || typeof config.id !== 'string') {
       console.error('Invalid configuration: Missing or invalid id');
-      return false;
+      return { isValid: false, error: 'Missing or invalid configuration ID' };
     }
 
     if (!config.name || typeof config.name !== 'string') {
       console.error('Invalid configuration: Missing or invalid name');
-      return false;
+      return { isValid: false, error: 'Configuration name is required' };
     }
 
     if (!Array.isArray(config.prompts)) {
       console.error('Invalid configuration: prompts is not an array');
-      return false;
+      return { isValid: false, error: 'Prompts must be in array format' };
     }
 
     if (config.prompts.length === 0) {
       console.error('Invalid configuration: prompts array is empty');
-      return false;
+      return { isValid: false, error: 'At least one prompt is required' };
     }
 
     // Validate trigger if present
-    if (config.trigger) {
+    if (config.trigger && config.trigger.enabled) {
       if (typeof config.trigger !== 'object') {
         console.error('Invalid configuration: trigger is not an object');
-        return false;
+        return { isValid: false, error: 'Invalid trigger configuration format' };
+      }
+
+      if (config.trigger.configId === config.id) {
+        console.error('Invalid configuration: trigger references the same configuration');
+        return { isValid: false, error: 'A configuration cannot trigger itself' };
       }
 
       if (!config.trigger.configId || typeof config.trigger.configId !== 'string') {
         console.error('Invalid configuration: trigger missing or invalid configId');
-        return false;
+        return { isValid: false, error: 'Trigger is missing a valid configuration ID' };
       }
 
       // preserveSession is optional, but if provided must be boolean
       if (config.trigger.preserveSession !== undefined && 
           typeof config.trigger.preserveSession !== 'boolean') {
         console.error('Invalid configuration: trigger.preserveSession must be a boolean');
-        return false;
+        return { isValid: false, error: 'Preserve session must be a yes/no option' };
       }
     }
 
-    return true;
+    return { isValid: true };
   }
 
   /**
@@ -243,8 +248,25 @@ class ConfigManager {
    * Save a configuration
    * @param {Object} config - Configuration object
    * @returns {Object} - Saved configuration
+   * @throws {Error} - With specific validation or save error message
    */
   async saveConfig(config) {
+    // Validate the configuration first
+    const validationResult = this.validateConfig(config);
+    if (!validationResult.isValid) {
+      throw new Error(validationResult.error);
+    }
+    
+    // Check for duplicate names (except for the current config being updated)
+    const duplicateName = this.configs.find(c => 
+      c.name === config.name && 
+      c.id !== config.id
+    );
+    
+    if (duplicateName) {
+      throw new Error(`Configuration name "${config.name}" is already in use. Please choose a unique name.`);
+    }
+    
     const existingIndex = this.configs.findIndex(c => c.id === config.id);
     
     if (existingIndex >= 0) {
@@ -255,8 +277,12 @@ class ConfigManager {
       this.configs.push(config);
     }
     
-    await this.saveConfigs();
-    return config;
+    try {
+      await this.saveConfigs();
+      return config;
+    } catch (error) {
+      throw new Error(`Failed to save configuration: ${error.message}`);
+    }
   }
 
   /**

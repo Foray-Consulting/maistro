@@ -5,6 +5,17 @@ const path = require('path');
 
 // Try to find the goose command
 function findGoosePath() {
+  // First check the local node_modules installation
+  const npmGoosePath = path.join(__dirname, '..', 'node_modules', '.bin', 'goose');
+  try {
+    if (fs.existsSync(npmGoosePath)) {
+      console.log(`Found Goose in node_modules: ${npmGoosePath}`);
+      return npmGoosePath;
+    }
+  } catch (error) {
+    // Ignore errors from existsSync
+  }
+
   try {
     // Try using the 'which' command
     const whichOutput = execSync('which goose', { encoding: 'utf8' }).trim();
@@ -78,5 +89,10 @@ if (goosePath) {
   fs.writeFileSync(configPath, goosePath);
   console.log(`Saved goose path to ${configPath}`);
 } else {
-  console.log('\nGoose command not found. Please make sure it is installed and in your PATH.');
+  console.log('\nGoose command not found. Will attempt to use default "goose" command.');
+  
+  // Save a default value as a fallback
+  const configPath = path.join(__dirname, '..', 'data', 'goose-path.txt');
+  fs.writeFileSync(configPath, 'goose');
+  console.log(`Saved default goose path to ${configPath}`);
 }

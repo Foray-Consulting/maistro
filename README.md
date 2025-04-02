@@ -19,8 +19,9 @@ Each configuration allows you to define:
 ## Prerequisites
 
 - Node.js and npm
-- [Goose CLI tool](https://github.com/xyzabc/goose) (confirmed to work with v1.0.7+)
 - Access to system crontab (for scheduling)
+
+> **Note:** Maistro now includes Goose CLI as a dependency. You no longer need to install it separately!
 
 ## Installation
 
@@ -30,7 +31,7 @@ git clone https://github.com/yourusername/maistro.git
 cd maistro
 ```
 
-2. Install dependencies:
+2. Install dependencies (this will also set up Goose automatically):
 ```bash
 npm install
 ```
@@ -41,6 +42,12 @@ npm start
 ```
 
 4. Open your browser to http://localhost:3000
+
+During installation, Maistro automatically:
+- Installs the Goose CLI as a dependency
+- Verifies the Goose installation
+- Creates necessary data directories
+- Configures paths for seamless operation
 
 ## Usage
 
@@ -66,6 +73,22 @@ npm start
 3. Choose frequency (daily, weekly, monthly)
 4. Set the time and day(s) as needed
 5. Save the configuration
+
+## Goose Integration
+
+Maistro now includes Goose CLI as a bundled dependency, providing these benefits:
+
+- **Zero Configuration:** The Goose CLI is automatically installed with Maistro
+- **Intelligent Detection:** The system first looks for the bundled version, then falls back to system installation if available
+- **Flexibility:** Advanced users can still use their own Goose installation if they prefer
+- **Docker Support:** Containerized deployments work without additional configuration
+
+The integration works through:
+1. A bundled dependency (`@block/goose`) included in package.json
+2. A postinstall script that verifies and configures the installation
+3. Path detection and storage for reliable execution
+
+This approach ensures a seamless experience while maintaining flexibility for advanced users.
 
 ### Configuring LLM Models
 
@@ -107,6 +130,27 @@ Maistro uses a sophisticated approach to model switching that preserves session 
    - All API keys and models are stored securely in the Maistro data directory
 
 This implementation allows for sophisticated workflows where different prompts can leverage the strengths of different models while maintaining a coherent conversation throughout the execution.
+
+## Docker Support
+
+Maistro includes Docker support for easy containerized deployment:
+
+```bash
+# Build the Docker image
+docker build -t maistro .
+
+# Run the container
+docker run -p 3000:3000 -v ./data:/app/data maistro
+```
+
+The Dockerfile:
+- Uses a multi-stage build process for optimal image size
+- Automatically installs and configures Goose CLI
+- Sets up the PATH to include node_modules/.bin for Goose access
+- Creates necessary data directories
+- Exposes port 3000 for web access
+
+Volume mounting the `./data` directory allows persistence of your configurations and prompts.
 
 ### Using MCP Server Extensions
 

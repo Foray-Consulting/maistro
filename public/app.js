@@ -1419,6 +1419,12 @@ function saveConfig() {
         }
     }
     
+    // Show saving indicator
+    const saveBtn = document.getElementById('saveConfigBtn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = 'Saving...';
+    saveBtn.disabled = true;
+    
     // Save to server
     fetch('/api/configs', {
         method: 'POST',
@@ -1427,7 +1433,15 @@ function saveConfig() {
         },
         body: JSON.stringify(editingConfig)
     })
-    .then(response => response.json())
+    .then(response => {
+        // Check if the response is OK before parsing JSON
+        if (!response.ok) {
+            return response.json().then(errorData => {
+                throw new Error(errorData.error || 'Failed to save configuration');
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         // Update local data
         const existingIndex = configs.findIndex(c => c.id === editingConfig.id);
@@ -1451,11 +1465,103 @@ function saveConfig() {
         // Enable execution panel
         document.getElementById('executionTitle').textContent = `Run: ${editingConfig.name}`;
         document.getElementById('executionPanel').classList.remove('hidden');
+        
+        // Show success message with auto-hide
+        showNotification('Configuration saved successfully', 'success');
     })
     .catch(error => {
         console.error('Error saving configuration:', error);
-        alert('Failed to save configuration');
+        showNotification(error.message || 'Failed to save configuration', 'error');
+        
+        // Update status to show error
+        document.getElementById('configStatus').textContent = 'Error';
+        document.getElementById('configStatus').className = 'status-indicator error';
+    })
+    .finally(() => {
+        // Reset save button
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
     });
+}
+
+/**
+ * Show a notification message to the user
+ * @param {string} message - The message to display
+ * @param {string} type - The type of notification (success, error, warning, info)
+ */
+function showNotification(message, type = 'info') {
+    // First check if notification container exists, create if not
+    let container = document.getElementById('notificationContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notificationContainer';
+        container.style.position = 'fixed';
+        container.style.top = '20px';
+        container.style.right = '20px';
+        container.style.maxWidth = '400px';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.style.padding = '15px 20px';
+    notification.style.marginBottom = '10px';
+    notification.style.borderRadius = '5px';
+    notification.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.2)';
+    notification.style.backgroundColor = type === 'error' ? '#f44336' : 
+                                         type === 'success' ? '#4CAF50' :
+                                         type === 'warning' ? '#ff9800' : '#2196F3';
+    notification.style.color = 'white';
+    notification.style.fontSize = '14px';
+    notification.style.display = 'flex';
+    notification.style.justifyContent = 'space-between';
+    notification.style.alignItems = 'center';
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.3s ease-in-out';
+    
+    // Add message
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    notification.appendChild(messageDiv);
+    
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '✕';
+    closeBtn.style.marginLeft = '10px';
+    closeBtn.style.background = 'none';
+    closeBtn.style.border = 'none';
+    closeBtn.style.color = 'white';
+    closeBtn.style.fontSize = '16px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.padding = '0 5px';
+    closeBtn.onclick = () => {
+        removeNotification(notification);
+    };
+    notification.appendChild(closeBtn);
+    
+    // Add to container
+    container.appendChild(notification);
+    
+    // Fade in
+    setTimeout(() => {
+        notification.style.opacity = '1';
+    }, 10);
+    
+    // Auto-remove after delay
+    setTimeout(() => {
+        removeNotification(notification);
+    }, 5000);
+    
+    function removeNotification(element) {
+        element.style.opacity = '0';
+        setTimeout(() => {
+            if (element.parentNode) {
+                element.parentNode.removeChild(element);
+            }
+        }, 300);
+    }
 }
 
 function cancelConfigEdit() {
