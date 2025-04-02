@@ -1,0 +1,83 @@
+/* Notification Styles */
+#notificationContainer {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  max-width: 400px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none; /* Allow clicks to pass through container */
+}
+
+.notification {
+  pointer-events: auto; /* Re-enable pointer events on actual notifications */
+}
+
+.notification {
+  padding: 15px 20px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  color: white;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.notification.error {
+  background-color: #f44336;
+}
+
+.notification.success {
+  background-color: #4CAF50;
+}
+
+.notification.warning {
+  background-color: #ff9800;
+}
+
+.notification.info {
+  background-color: #2196F3;
+}
+
+/* Status indicator styles */
+.status-indicator {
+  font-size: 0.8em;
+  padding: 3px 8px;
+  border-radius: 10px;
+  margin-left: 10px;
+  display: inline-block;
+}
+
+.status-indicator.saved {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.status-indicator.unsaved {
+  background-color: #ff9800;
+  color: white;
+}
+
+.status-indicator.error {
+  background-color: #f44336;
+  color: white;
+}
+
+/* Form validation styles */
+.form-group.has-error input,
+.form-group.has-error textarea,
+.form-group.has-error select {
+  border-color: #f44336;
+}
+
+.validation-error {
+  color: #f44336;
+  font-size: 0.85em;
+  margin-top: 5px;
+}
