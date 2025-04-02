@@ -329,49 +329,102 @@ server.on('upgrade', (request, socket, head) => {
   const pathname = new URL(request.url, 'http://localhost').pathname;
   
   if (pathname.startsWith('/ws/execution/')) {
-    wss.handleUpgrade(request, socket, head, (ws) => {
+    try {
       const configId = pathname.split('/').pop();
-      console.log(`WebSocket connection established for config ID: ${configId}`);
+      console.log(`WebSocket upgrade request received for config ID: ${configId}`);
       
-      // Store the connection
-      connections.set(configId, ws);
+      // Verify the configuration exists before establishing a connection
+      const config = configManager.getConfigById(configId);
+      if (!config) {
+        console.error(`WebSocket connection rejected - Configuration ID not found: ${configId}`);
+        socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+        socket.destroy();
+        return;
+      }
       
-      // Send initial confirmation to client
-      ws.send(JSON.stringify({
-        type: 'connection',
-        message: `WebSocket connection established for configuration ${configId}`
-      }));
-      
-      // Set ping interval to keep connection alive
-      const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.ping();
-        } else {
-          clearInterval(pingInterval);
-        }
-      }, 30000); // Send ping every 30 seconds
-      
-      // Handle WebSocket events
-      ws.on('close', () => {
-        console.log(`WebSocket connection closed for config ID: ${configId}`);
-        connections.delete(configId);
-        clearInterval(pingInterval);
-      });
-      
-      ws.on('error', (error) => {
-        console.error(`WebSocket error for config ID: ${configId}:`, error);
-      });
-      
-      // Custom ping/pong handling to detect connection issues
-      ws.on('pong', () => {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        console.log(`WebSocket connection established for config ID: ${configId}`);
+        
+        // Store the connection with timestamp
+        connections.set(configId, ws);
+        
+        // Add connection state tracking
         ws.isAlive = true;
+        ws.configId = configId;
+        ws.connectionTime = Date.now();
+        
+        // Send initial confirmation to client
+        ws.send(JSON.stringify({
+          type: 'connection',
+          message: `WebSocket connection established for configuration ${configId}`,
+          timestamp: Date.now()
+        }));
+        
+        // Set ping interval to keep connection alive (reduced interval for better reliability)
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.ping();
+          } else {
+            clearInterval(pingInterval);
+          }
+        }, 15000); // Send ping every 15 seconds (reduced from 30s)
+        
+        // Handle incoming messages from client
+        ws.on('message', (message) => {
+          try {
+            const data = JSON.parse(message.toString());
+            
+            // Handle heartbeat messages
+            if (data.type === 'heartbeat') {
+              console.log(`Received heartbeat from client for config ID: ${configId}`);
+              ws.isAlive = true;
+              
+              // Respond with a heartbeat acknowledgment
+              ws.send(JSON.stringify({
+                type: 'heartbeat_ack',
+                timestamp: Date.now()
+              }));
+            }
+          } catch (error) {
+            console.error(`Error processing client message:`, error);
+          }
+        });
+        
+        // Handle WebSocket events
+        ws.on('close', (code, reason) => {
+          console.log(`WebSocket connection closed for config ID: ${configId} with code: ${code}, reason: ${reason || 'No reason provided'}`);
+          connections.delete(configId);
+          clearInterval(pingInterval);
+        });
+        
+        ws.on('error', (error) => {
+          console.error(`WebSocket error for config ID: ${configId}:`, error);
+          // Try to send error information to the client
+          try {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: `WebSocket connection error: ${error.message || 'Unknown error'}`,
+                timestamp: Date.now()
+              }));
+            }
+          } catch (sendError) {
+            console.error('Failed to send error message to client:', sendError);
+          }
+        });
+        
+        // Custom ping/pong handling to detect connection issues
+        ws.on('pong', () => {
+          ws.isAlive = true;
+        });
+        
+        wss.emit('connection', ws, request);
       });
-      
-      // Mark connection as alive initially
-      ws.isAlive = true;
-      
-      wss.emit('connection', ws, request);
-    });
+    } catch (error) {
+      console.error('WebSocket upgrade error:', error);
+      socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+      socket.destroy();
+    }
   } else {
     socket.destroy();
   }
@@ -381,13 +434,14 @@ server.on('upgrade', (request, socket, head) => {
 const interval = setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) {
+      console.log(`Terminating stale WebSocket connection for config ID: ${ws.configId || 'unknown'}`);
       return ws.terminate();
     }
     
     ws.isAlive = false;
     ws.ping();
   });
-}, 45000); // Check every 45 seconds
+}, 30000); // Check every 30 seconds (reduced from 45s)
 
 // Clean up interval on server close
 wss.on('close', () => {

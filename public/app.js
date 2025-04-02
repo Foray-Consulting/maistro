@@ -2088,36 +2088,77 @@ function connectSocket(configId) {
     // Create new socket
     socket = new WebSocket(`ws://${window.location.host}/ws/execution/${configId}`);
     
-    // Set timeout for connection
+    // Connection timeout and retry mechanism
+    let retryCount = 0;
+    const maxRetries = 3;
+    
     const connectionTimeout = setTimeout(() => {
         if (socket.readyState !== WebSocket.OPEN) {
             console.error('WebSocket connection timeout');
-            updateConnectionStatus('offline', 'Connection failed');
-            appendOutput('Connection timeout. Please try again.\n', 'error');
+            
+            if (retryCount < maxRetries) {
+                retryCount++;
+                clearTimeout(connectionTimeout);
+                
+                // Update UI to show retry attempt
+                updateConnectionStatus('connecting', `Connection timed out. Retry attempt ${retryCount}/${maxRetries}...`);
+                appendOutput(`Connection attempt failed. Retrying (${retryCount}/${maxRetries})...\n`, 'warning');
+                
+                // Close the current socket if it exists
+                if (socket) {
+                    socket.close();
+                }
+                
+                // Wait a moment before retrying
+                setTimeout(() => {
+                    // Create a new socket connection
+                    socket = new WebSocket(`ws://${window.location.host}/ws/execution/${configId}`);
+                    
+                    // Reset event handlers for the new socket
+                    setupSocketEventHandlers();
+                }, 1000);
+            } else {
+                updateConnectionStatus('offline', 'Connection failed after retries');
+                appendOutput('WebSocket connection failed after multiple attempts. Please check your network connection and server status.\n', 'error');
+            }
         }
     }, 5000);
     
-    socket.onopen = () => {
-        clearTimeout(connectionTimeout);
-        console.log('WebSocket connected');
-        updateConnectionStatus('connected');
-        appendOutput('Connected, waiting for execution to start...\n', 'info');
-        
-        // Start checking for activity
-        if (statusCheckInterval) {
-            clearInterval(statusCheckInterval);
-        }
-        
-        statusCheckInterval = setInterval(() => {
-            // If we've received a message in the last 2 seconds, show "active"
-            const now = Date.now();
-            if (now - lastMessageTime < 2000) {
-                updateConnectionStatus('active', 'Receiving data...');
-            } else {
-                updateConnectionStatus('connected');
+    // Setup event handlers in a separate function to avoid code duplication during retries
+    function setupSocketEventHandlers() {
+        socket.onopen = () => {
+            clearTimeout(connectionTimeout);
+            console.log('WebSocket connected');
+            updateConnectionStatus('connected');
+            appendOutput('Connected, waiting for execution to start...\n', 'info');
+            
+            // Start checking for activity
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
             }
-        }, 1000);
-    };
+            
+            statusCheckInterval = setInterval(() => {
+                // If we've received a message in the last 2 seconds, show "active"
+                const now = Date.now();
+                if (now - lastMessageTime < 2000) {
+                    updateConnectionStatus('active', 'Receiving data...');
+                } else {
+                    updateConnectionStatus('connected');
+                }
+            }, 1000);
+            
+            // Send a heartbeat message to confirm connection is working
+            try {
+                socket.send(JSON.stringify({ type: 'heartbeat', configId }));
+                console.log('Sent initial heartbeat to confirm connection');
+            } catch (error) {
+                console.error('Error sending heartbeat:', error);
+            }
+        };
+    }
+    
+    // Initial setup of event handlers
+    setupSocketEventHandlers();
     
     socket.onmessage = (event) => {
         // Update last message time
@@ -2180,18 +2221,43 @@ function connectSocket(configId) {
         clearTimeout(connectionTimeout);
         console.error('WebSocket error:', error);
         updateConnectionStatus('offline', 'Connection error');
-        appendOutput('WebSocket error: Connection failed', 'error');
+        
+        // Extract more detailed error information if possible
+        let errorMessage = 'WebSocket error: Connection failed';
+        if (error && error.message) {
+            errorMessage = `WebSocket error: ${error.message}`;
+        }
+        
+        appendOutput(errorMessage, 'error');
+        appendOutput('Try refreshing the page or check if the server is running.', 'info');
+        
+        // Enable the run button again if it was disabled
+        const runBtn = document.getElementById('runConfigBtn');
+        if (runBtn && runBtn.disabled) {
+            runBtn.disabled = false;
+            runBtn.textContent = 'Run Now';
+        }
     };
     
-    socket.onclose = () => {
+    socket.onclose = (event) => {
         clearTimeout(connectionTimeout);
-        console.log('WebSocket closed');
+        console.log('WebSocket closed with code:', event.code);
         updateConnectionStatus('offline', 'Disconnected');
+        
+        // Log close reason
+        if (event.reason) {
+            console.log('Close reason:', event.reason);
+        }
         
         // Clear the status check interval
         if (statusCheckInterval) {
             clearInterval(statusCheckInterval);
             statusCheckInterval = null;
+        }
+        
+        // If we had an abnormal closure, give the user instructions
+        if (event.code !== 1000 && event.code !== 1001) {
+            appendOutput('WebSocket connection closed unexpectedly. You may need to refresh the page.', 'warning');
         }
     };
 }
